@@ -1,4 +1,5 @@
 {
+  "description": "Standard dev preset. Auto-allows safe read/test commands, blocks dangerous operations.",
   "permissions": {
     "allow": [
       "Read",

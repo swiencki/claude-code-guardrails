@@ -1,4 +1,4 @@
-# Example CLAUDE.md Guardrails
+# Guardrails
 
 ## File Protection
 - Never modify files under `infrastructure/` without explicit confirmation

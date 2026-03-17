@@ -1,0 +1,23 @@
+{
+  "description": "Read-only preset. Allows all read operations, denies all writes and executions.",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(git status)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)",
+      "Bash(git branch)"
+    ],
+    "deny": [
+      "Edit",
+      "Write",
+      "Bash(rm *)",
+      "Bash(git push *)",
+      "Bash(git reset *)"
+    ]
+  }
+}

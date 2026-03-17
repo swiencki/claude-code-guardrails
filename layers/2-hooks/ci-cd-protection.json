@@ -1,0 +1,27 @@
+{
+  "description": "Prevents modifications to CI/CD pipeline files and protected directories.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm .*(infrastructure|deploy|config)/\") | not'",
+            "statusMessage": "Checking for protected directory deletion"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"\\\\.github/workflows/\") | not'",
+            "statusMessage": "Checking for CI/CD pipeline edits"
+          }
+        ]
+      }
+    ]
+  }
+}

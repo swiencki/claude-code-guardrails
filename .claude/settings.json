@@ -2,15 +2,85 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
         "hooks": [
           {
-            "type": "command",
             "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"--mode\\\\s+Complete\") | not'",
-            "statusMessage": "Checking for az deployment --mode Complete"
+            "statusMessage": "Checking for az deployment --mode Complete",
+            "type": "command"
+          },
+          {
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm .*(infrastructure|deploy|config)/\") | not'",
+            "statusMessage": "Checking for protected directory deletion",
+            "type": "command"
+          },
+          {
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"push.*(--force|-f)\") | not'",
+            "statusMessage": "Checking for git force push",
+            "type": "command"
+          },
+          {
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"git (reset --hard|clean -f|checkout \\\\.|restore \\\\.)\") | not'",
+            "statusMessage": "Checking for destructive git commands",
+            "type": "command"
+          },
+          {
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(cat|echo|curl).*(env|credentials|secret|token)\") | not'",
+            "statusMessage": "Checking for secret leaks",
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"\\\\.github/workflows/\") | not'",
+            "statusMessage": "Checking for CI/CD pipeline edits",
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit"
+      },
+      {
+        "hooks": [
+          {
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"\\\\.(env|pem|key)$\") | not'",
+            "statusMessage": "Checking for secret file writes",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write"
       }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git branch)",
+      "Bash(git diff *)",
+      "Bash(git diff)",
+      "Bash(git log *)",
+      "Bash(git log)",
+      "Bash(git status)",
+      "Bash(go test ./...)",
+      "Bash(make lint)",
+      "Bash(make test)",
+      "Bash(npm run lint)",
+      "Bash(npm run test)",
+      "Glob",
+      "Grep",
+      "Read"
+    ],
+    "deny": [
+      "Bash(curl *)",
+      "Bash(git push *)",
+      "Bash(git push --force*)",
+      "Bash(git reset *)",
+      "Bash(git reset --hard*)",
+      "Bash(rm *)",
+      "Bash(rm -rf *)",
+      "Bash(wget *)",
+      "Edit",
+      "Write"
     ]
   }
 }

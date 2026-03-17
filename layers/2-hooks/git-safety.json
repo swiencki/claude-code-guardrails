@@ -1,0 +1,22 @@
+{
+  "description": "Blocks destructive git operations: force push, hard reset, clean, checkout .",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"push.*(--force|-f)\") | not'",
+            "statusMessage": "Checking for git force push"
+          },
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"git (reset --hard|clean -f|checkout \\\\.|restore \\\\.)\") | not'",
+            "statusMessage": "Checking for destructive git commands"
+          }
+        ]
+      }
+    ]
+  }
+}

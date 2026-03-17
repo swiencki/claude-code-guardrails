@@ -1,6 +1,45 @@
 # Claude Code Guardrails
 
-A practical guide to the six guardrail layers available in Claude Code, with ready-to-use examples.
+A modular, composable guardrail system for Claude Code. Drop in the layers you need, run the build script, and get a working `.claude/settings.json`.
+
+## Quick Start
+
+```bash
+# List available guardrail fragments
+./scripts/build-settings.sh --list
+
+# Build .claude/settings.json from all layers
+./scripts/build-settings.sh
+
+# Build hooks only (no permissions)
+./scripts/build-settings.sh --hooks-only
+
+# Build permissions only (no hooks)
+./scripts/build-settings.sh --permissions-only
+```
+
+## Project Structure
+
+```
+layers/
+├── 1-claude-md/              # Soft guidance (CLAUDE.md templates)
+├── 2-hooks/                  # Hard guardrails (JSON fragments, merged by build script)
+│   ├── azure-safety.json     # Blocks az --mode Complete
+│   ├── git-safety.json       # Blocks force push, hard reset, etc.
+│   ├── secret-protection.json # Blocks secret file access/leaks
+│   └── ci-cd-protection.json # Blocks CI/CD pipeline modifications
+├── 3-permissions/            # Tool-level allow/deny presets
+│   ├── read-only.json        # Read-only access
+│   └── standard-dev.json     # Standard dev (read + test + lint)
+├── 4-sub-agents/             # Scoped agent definitions
+│   └── reviewer.json         # Read-only code reviewer
+├── 5-agent-teams/            # Agent team configs (planned)
+└── 6-enterprise/             # Org policy templates (planned)
+scripts/
+└── build-settings.sh         # Merges fragments into .claude/settings.json
+.claude/
+└── settings.json             # Generated output (do not edit directly)
+```
 
 ## The Six Layers
 
@@ -15,7 +54,7 @@ Claude Code provides a layered guardrail system. Each layer serves a different p
 | [Agent Teams](#5-agent-teams) | Hard (independent sessions) | Parallel work with isolated guardrails |
 | [Enterprise/Org Policies](#6-enterpriseorg-policies) | Hard (organization-managed) | Company-wide restrictions across all users |
 
-## 1. CLAUDE.md
+### 1. CLAUDE.md
 
 Natural language instructions that Claude reads and follows. Not mechanically enforced - it's guidance, not a gate.
 
@@ -23,88 +62,63 @@ Natural language instructions that Claude reads and follows. Not mechanically en
 
 **Limitation:** Context window pressure can cause Claude to miss or override these instructions. Don't rely on CLAUDE.md alone for critical safety rules.
 
-```markdown
-## Rules
-- Never modify files under `deploy/` without asking first
-- Always run `make test` before suggesting a commit
-- Use snake_case for all Python function names
-```
+Copy `layers/1-claude-md/CLAUDE.md` to your project root and customize it.
 
-See [examples/claude-md/](examples/claude-md/) for more examples.
+### 2. Hooks
 
-## 2. Hooks
-
-Shell commands that execute at specific lifecycle points. They block execution with a non-zero exit code. Claude cannot bypass them.
+Shell commands that execute at specific lifecycle points via `PreToolUse`. They block execution with a non-zero exit code. Claude cannot bypass them.
 
 **When to use:** Preventing dangerous commands, enforcing validation before commits, catching security issues in real-time.
 
-**12 lifecycle events** including `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, and `Stop`.
+**Adding a new hook:** Create a JSON file in `layers/2-hooks/` following this format:
 
 ```json
 {
+  "description": "What this hook does",
   "hooks": {
-    "Bash": {
-      "pre": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"push.*(--force|-f)\") | not'"
-    }
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"dangerous-pattern\") | not'",
+            "statusMessage": "Checking for dangerous pattern"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
-See [examples/hooks/](examples/hooks/) for more examples.
+Then run `./scripts/build-settings.sh` to regenerate `.claude/settings.json`.
 
-## 3. Permissions
+### 3. Permissions
 
-Tool-level allow/deny rules in `settings.json`. Simple and declarative - no scripting needed.
+Tool-level allow/deny rules. Simple and declarative - no scripting needed.
 
 **When to use:** Allowing read-only commands to auto-run while requiring approval for state-changing operations.
 
+**Adding a preset:** Create a JSON file in `layers/3-permissions/` with `permissions.allow` and `permissions.deny` arrays. The build script deduplicates and merges all presets.
+
 **Limitation:** Deny rules match exact patterns, so variants of a command may slip through. Combine with hooks for reliable blocking.
 
-```json
-{
-  "permissions": {
-    "allow": ["Read", "Glob", "Grep", "Bash(git status)", "Bash(git diff)", "Bash(git log)"],
-    "deny": ["Bash(rm -rf *)", "Bash(curl *)"]
-  }
-}
-```
-
-See [examples/permissions/](examples/permissions/) for more examples.
-
-## 4. Sub-agents
+### 4. Sub-agents
 
 Custom agents with scoped tool restrictions, custom permissions, and their own hooks.
 
-**When to use:** Delegating tasks where you want to limit what tools the agent can access. For example, a "reviewer" sub-agent that can only read files, not edit them.
+**When to use:** Delegating tasks where you want to limit what tools the agent can access.
 
 **Constraint:** Sub-agents cannot spawn other sub-agents (no infinite recursion).
 
-```json
-{
-  "name": "reviewer",
-  "description": "Reviews code for quality issues",
-  "tools": ["Read", "Glob", "Grep"],
-  "permissions": {
-    "deny": ["Edit", "Write", "Bash"]
-  }
-}
-```
+### 5. Agent Teams
 
-See [examples/sub-agents/](examples/sub-agents/) for more examples.
+Multiple independent Claude sessions that coordinate and divide work in parallel. Each session has its own guardrails. *(Planned)*
 
-## 5. Agent Teams
+### 6. Enterprise/Org Policies
 
-Multiple independent Claude sessions that coordinate and divide work in parallel. Each session has its own guardrails.
-
-**When to use:** Large tasks that benefit from parallelism, where each agent needs different tool access.
-
-**Launched:** February 2026 alongside Opus 4.6.
-
-## 6. Enterprise/Org Policies
-
-Organization-managed policies that override user and project settings. Can restrict the use of `--dangerously-skip-permissions` across all member CLIs.
-
-**When to use:** Company-wide security requirements. Enforced automatically for all organization members.
+Organization-managed policies that override user and project settings. Can restrict the use of `--dangerously-skip-permissions` across all member CLIs. *(Planned)*
 
 **Resolution priority:** Enterprise > User > Project > Plugin.
 
@@ -112,24 +126,19 @@ Organization-managed policies that override user and project settings. Can restr
 
 ```
 Is it critical that this rule CANNOT be bypassed?
-  ├── Yes
-  │   ├── Does it need pattern matching / complex logic? → Hooks
-  │   ├── Is it a simple tool allow/deny? → Permissions
-  │   ├── Is it scoped to a delegated task? → Sub-agents
-  │   └── Does it apply across the whole org? → Enterprise Policies
-  └── No → CLAUDE.md
+  |-- Yes
+  |   |-- Does it need pattern matching / complex logic? -> Hooks
+  |   |-- Is it a simple tool allow/deny? -> Permissions
+  |   |-- Is it scoped to a delegated task? -> Sub-agents
+  |   +-- Does it apply across the whole org? -> Enterprise Policies
+  +-- No -> CLAUDE.md
 ```
 
-## Recommended Layering Strategy
+## Contributing
 
-Start simple, add layers as needed:
-
-1. **CLAUDE.md** for conventions and preferences (start here)
-2. **Permissions** to auto-allow safe commands and block dangerous ones
-3. **Hooks** for complex validation that permissions can't express
-4. **Sub-agents** when delegating tasks that need restricted tool access
-5. **Agent Teams** for parallel workflows with isolated guardrails
-6. **Enterprise Policies** for organization-wide enforcement
+1. Add a new fragment to the appropriate `layers/` directory
+2. Run `./scripts/build-settings.sh` to verify it merges correctly
+3. Submit a PR
 
 ## References
 
