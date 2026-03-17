@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"--mode\\\\s+Complete\") | not'",
+            "statusMessage": "Checking for az deployment --mode Complete"
+          }
+        ]
+      }
+    ]
+  }
+}
