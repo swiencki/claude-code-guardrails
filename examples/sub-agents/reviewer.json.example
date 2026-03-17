@@ -1,0 +1,9 @@
+{
+  "name": "reviewer",
+  "description": "Reviews code for quality, security, and style issues. Read-only access.",
+  "prompt": "You are a code reviewer. Analyze the code for bugs, security issues, and style problems. Report findings but do not make changes.",
+  "tools": ["Read", "Glob", "Grep"],
+  "permissions": {
+    "deny": ["Edit", "Write", "Bash", "MultiEdit"]
+  }
+}
