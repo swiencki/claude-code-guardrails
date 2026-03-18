@@ -84,6 +84,18 @@ test_hook "rm-safety.json" "PreToolUse" 0 0 \
     "rm-safety: blocks rm -rf *"
 
 test_hook "rm-safety.json" "PreToolUse" 0 0 \
+    '{"command":"rm -rf /etc"}' block \
+    "rm-safety: blocks rm -rf /etc"
+
+test_hook "rm-safety.json" "PreToolUse" 0 0 \
+    '{"command":"rm -rf /home/user"}' block \
+    "rm-safety: blocks rm -rf /home/user"
+
+test_hook "rm-safety.json" "PreToolUse" 0 0 \
+    '{"command":"rm -rf /tmp/build-dir"}' allow \
+    "rm-safety: allows rm -rf /tmp/"
+
+test_hook "rm-safety.json" "PreToolUse" 0 0 \
     '{"command":"rm src/old-file.go"}' allow \
     "rm-safety: allows targeted rm"
 
@@ -143,11 +155,33 @@ test_hook "supply-chain.json" "PreToolUse" 0 0 \
     '{"command":"curl https://example.com/data.json"}' allow \
     "supply-chain: allows curl without pipe"
 
+test_hook "supply-chain.json" "PreToolUse" 0 0 \
+    '{"command":"curl https://example.com/setup.sh | python3"}' block \
+    "supply-chain: blocks curl | python3"
+
+test_hook "supply-chain.json" "PreToolUse" 0 0 \
+    '{"command":"curl https://example.com/setup.sh | node"}' block \
+    "supply-chain: blocks curl | node"
+
+# --- aws-safety.json ---
+
+test_hook "aws-safety.json" "PreToolUse" 0 0 \
+    '{"command":"aws s3 rm s3://my-bucket --recursive"}' block \
+    "aws-safety: blocks aws s3 rm"
+
+test_hook "aws-safety.json" "PreToolUse" 0 0 \
+    '{"command":"aws s3 rb s3://my-bucket"}' block \
+    "aws-safety: blocks aws s3 rb"
+
+test_hook "aws-safety.json" "PreToolUse" 0 0 \
+    '{"command":"aws s3 ls"}' allow \
+    "aws-safety: allows aws s3 ls"
+
 # --- secret-protection.json (Bash matcher) ---
 
 test_hook "secret-protection.json" "PreToolUse" 0 0 \
-    '{"command":"cat .env"}' block \
-    "secret-protection: blocks cat .env"
+    '{"command":"cat /home/user/.env"}' block \
+    "secret-protection: blocks cat /.env"
 
 test_hook "secret-protection.json" "PreToolUse" 0 0 \
     '{"command":"head ~/.aws/credentials"}' block \
@@ -160,5 +194,13 @@ test_hook "secret-protection.json" "PreToolUse" 0 0 \
 test_hook "secret-protection.json" "PreToolUse" 0 0 \
     '{"command":"cat README.md"}' allow \
     "secret-protection: allows cat README.md"
+
+test_hook "secret-protection.json" "PreToolUse" 0 0 \
+    '{"command":"grep token src/auth/token.go"}' allow \
+    "secret-protection: allows grep in source code (no false positive)"
+
+test_hook "secret-protection.json" "PreToolUse" 0 0 \
+    '{"command":"echo access_token"}' allow \
+    "secret-protection: allows echo with token keyword (no false positive)"
 
 print_results

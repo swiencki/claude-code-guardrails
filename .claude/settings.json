@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"aws\\\\s+.*(delete-|terminate-|remove-|destroy-|drop-)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"aws\\\\s+.*(delete-|terminate-|remove-|destroy-|drop-)|aws\\\\s+s3\\\\s+(rm|rb)\\\\s\") | not'",
             "statusMessage": "Checking for destructive AWS CLI commands",
             "type": "command"
           },
@@ -39,17 +39,17 @@
             "type": "command"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm\\\\s+(-[a-zA-Z]*)?\\\\s*(/|~|\\\\*|\\\\$HOME)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm\\\\s+(-[a-zA-Z]*\\\\s+)*(/$|/\\\\s|~|\\\\$HOME|\\\\*|/(etc|usr|var|home|opt|root|bin|sbin|lib|boot|dev|proc|sys|srv|run|mnt|media)(/|\\\\s|$))\") | not'",
             "statusMessage": "Checking for dangerous rm commands",
             "type": "command"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(cat|bat|less|more|head|tail|grep|vim|nano|echo|curl|wget).*(\\\\.env|credentials|secret|token|\\\\.pem|\\\\.key|\\\\.ssh/|\\\\.aws/|\\\\.kube/config|\\\\.gnupg/)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(cat|bat|less|more|head|tail|vim|nano|curl|wget).*(/\\\\.env|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/|\\\\.pem|\\\\.key|credentials)\") | not'",
             "statusMessage": "Checking for secret/credential access",
             "type": "command"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(curl|wget).*\\\\|\\\\s*(bash|sh|zsh|python|perl|ruby)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(curl|wget).*\\\\|\\\\s*(bash|sh|zsh|python|python3|perl|ruby|node)\") | not'",
             "statusMessage": "Checking for piped remote execution",
             "type": "command"
           },
@@ -74,7 +74,7 @@
       {
         "hooks": [
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"(\\\\.env|\\\\.pem|\\\\.key|credentials|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"(/\\\\.env|\\\\.pem|\\\\.key|credentials|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/)\") | not'",
             "statusMessage": "Checking for secret file reads",
             "type": "command"
           }
@@ -84,7 +84,12 @@
       {
         "hooks": [
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"(\\\\.env|\\\\.pem|\\\\.key|credentials|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/)\" ) | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"\\\\.github/workflows/\") | not'",
+            "statusMessage": "Checking for CI/CD pipeline writes",
+            "type": "command"
+          },
+          {
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"(/\\\\.env|\\\\.pem|\\\\.key|credentials|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/)\") | not'",
             "statusMessage": "Checking for secret file writes",
             "type": "command"
           }

@@ -17,7 +17,7 @@ else
   DRY_RUN_FLAG :=
 endif
 
-.PHONY: help build remove list test lint lint-bash lint-json clean
+.PHONY: help init build remove list test lint lint-bash lint-json clean
 
 help: ## Show this help
 	@echo "Usage: make <target> [target=user|project|/path] [layers=hooks,permissions] [dry=1]"
@@ -44,6 +44,19 @@ help: ## Show this help
 	@echo "  make build dry=1                            # preview build without writing"
 	@echo "  make remove layers=hooks target=user         # remove hooks from user settings"
 	@echo "  make remove dry=1 layers=hooks               # preview removal"
+	@echo "  make init target=~/my-project                # guardrails + CLAUDE.md"
+
+init: ## Initialize a project with guardrails and CLAUDE.md
+	@if [ "$(target)" = "project" ]; then \
+		echo "Error: init requires a target (e.g. make init target=~/my-project)" >&2; \
+		exit 1; \
+	fi
+	@$(SCRIPT) --target $(target) $(LAYERS_FLAG) $(DRY_RUN_FLAG)
+	@if [ -z "$(dry)" ]; then \
+		cp -n $(REPO_ROOT)/layers/1-claude-md/CLAUDE.md $(target)/CLAUDE.md 2>/dev/null \
+			&& echo "Copied CLAUDE.md to $(target)/CLAUDE.md" \
+			|| echo "CLAUDE.md already exists in $(target), skipped"; \
+	fi
 
 build: ## Build settings.json from selected layers
 	@$(SCRIPT) --target $(target) $(LAYERS_FLAG) $(DRY_RUN_FLAG)

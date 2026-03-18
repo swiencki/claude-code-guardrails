@@ -21,6 +21,16 @@
             "statusMessage": "Checking for CI/CD pipeline edits"
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"\\\\.github/workflows/\") | not'",
+            "statusMessage": "Checking for CI/CD pipeline writes"
+          }
+        ]
       }
     ]
   }

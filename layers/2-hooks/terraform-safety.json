@@ -1,5 +1,5 @@
 {
-  "description": "Blocks terraform destroy and unapproved terraform apply.",
+  "description": "Blocks terraform destroy and apply. Apply is intentionally blocked to prevent unreviewed infrastructure changes - use terraform plan instead.",
   "hooks": {
     "PreToolUse": [
       {

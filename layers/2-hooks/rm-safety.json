@@ -1,5 +1,5 @@
 {
-  "description": "Blocks dangerous rm commands: rm -rf /, rm -rf ~, rm -rf *, and broad recursive deletes.",
+  "description": "Blocks dangerous rm commands: rm -rf /, rm -rf ~, rm -rf $HOME, rm -rf *, and root-level paths like /etc, /usr, /var, /home, /opt, /root.",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm\\\\s+(-[a-zA-Z]*)?\\\\s*(/|~|\\\\*|\\\\$HOME)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm\\\\s+(-[a-zA-Z]*\\\\s+)*(/$|/\\\\s|~|\\\\$HOME|\\\\*|/(etc|usr|var|home|opt|root|bin|sbin|lib|boot|dev|proc|sys|srv|run|mnt|media)(/|\\\\s|$))\") | not'",
             "statusMessage": "Checking for dangerous rm commands"
           }
         ]

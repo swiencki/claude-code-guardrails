@@ -23,6 +23,9 @@ brew install jq shellcheck make
 ## Quick Start
 
 ```bash
+# Initialize a project with guardrails + CLAUDE.md
+make init target=~/my-project
+
 # List available guardrail fragments
 make list
 
@@ -82,7 +85,7 @@ layers/
 scripts/
 └── build-settings.sh         # Merges fragments into .claude/settings.json
 tests/
-└── run-tests.sh              # 37 tests covering build, merge, and idempotency
+└── run-tests.sh              # Test runner (90 tests across 7 files)
 .claude/
 └── settings.json             # Generated output (do not edit directly)
 Makefile                      # Build interface

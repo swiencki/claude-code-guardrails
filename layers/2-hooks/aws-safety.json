@@ -1,5 +1,5 @@
 {
-  "description": "Blocks destructive AWS CLI operations: deleting resources, terminating instances, dropping databases.",
+  "description": "Blocks destructive AWS CLI operations: deleting resources, terminating instances, removing S3 buckets.",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"aws\\\\s+.*(delete-|terminate-|remove-|destroy-|drop-)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"aws\\\\s+.*(delete-|terminate-|remove-|destroy-|drop-)|aws\\\\s+s3\\\\s+(rm|rb)\\\\s\") | not'",
             "statusMessage": "Checking for destructive AWS CLI commands"
           }
         ]

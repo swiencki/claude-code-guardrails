@@ -15,8 +15,8 @@ assert_json_count "$OUTPUT" \
 
 assert_json_count "$OUTPUT" \
     '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' \
-    -ge 8 \
-    "at least 8 Bash hooks merged"
+    -eq 11 \
+    "exactly 11 Bash hooks merged"
 
 # Specific guardrails are present
 assert_output_contains "force" "git force push hook present" \
