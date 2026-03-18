@@ -26,11 +26,11 @@ brew install jq shellcheck make
 # List available guardrail fragments
 make list
 
-# Preview what would be generated (no files written)
-make dry-run
-
 # Build all layers to this repo's .claude/settings.json
 make build
+
+# Preview what would be generated (no files written)
+make build DRY_RUN=1
 
 # Install to your user-level settings (applies to all projects)
 # Merges with existing settings - preserves model, plugins, etc.
@@ -46,12 +46,13 @@ make build LAYERS=hooks,permissions       # hooks + permissions
 
 # Combine layer selection with target
 make build LAYERS=hooks TARGET=user       # hooks to user settings
-make dry-run LAYERS=hooks                 # preview hooks only
+make build LAYERS=hooks DRY_RUN=1         # preview hooks only
 
 # Remove layers from an existing settings.json
 make remove LAYERS=hooks TARGET=user      # remove hooks from user settings
+make remove DRY_RUN=1 LAYERS=hooks        # preview removal
 
-# Run the test suite (87 tests)
+# Run the test suite (90 tests)
 make test
 ```
 
@@ -188,11 +189,11 @@ Run the full test suite:
 make test
 ```
 
-The test suite (87 tests) covers:
+The test suite (90 tests) covers:
 
 | Category | Tests | What it verifies |
 |---|---|---|
-| CLI | 11 | `make help`, `make list`, exit codes, LAYERS, targets |
+| CLI | 14 | `make help`, `make list`, exit codes, LAYERS, DRY_RUN, targets |
 | Layers | 16 | All/single/multiple layer selection |
 | Merge | 11 | Preserves existing settings, single layer merge, idempotency |
 | Hooks | 9 | Consolidation, matchers (Bash, Write, Edit, Read), valid JSON |
