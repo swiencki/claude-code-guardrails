@@ -139,7 +139,7 @@ settings_layers_enabled() {
 }
 
 list_fragments() {
-    local dir name desc
+    local dir desc rel
 
     echo "Available layers and fragments:"
     echo ""
@@ -147,12 +147,11 @@ list_fragments() {
     for layer in hooks permissions sub-agents; do
         dir="$LAYERS_DIR/${LAYER_DIRS[$layer]}"
         echo "  $layer (layers/${LAYER_DIRS[$layer]}/):"
-        for f in "$dir"/*.json; do
-            [ -f "$f" ] || continue
-            name=$(basename "$f")
+        while IFS= read -r f; do
+            rel="${f#"$dir"/}"
             desc=$(jq -r '.description // "No description"' "$f")
-            echo "    $name: $desc"
-        done
+            echo "    $rel: $desc"
+        done < <(find "$dir" -name '*.json' -type f | sort)
         echo ""
     done
 }
@@ -165,14 +164,13 @@ merge_hooks() {
         result=$(echo "$result" | jq --arg ev "$event" '.hooks[$ev] = []')
     done
 
-    for f in "$dir"/*.json; do
-        [ -f "$f" ] || continue
+    while IFS= read -r f; do
         for event in $HOOK_EVENTS; do
             local entries
             entries=$(jq --arg ev "$event" '.hooks[$ev] // []' "$f")
             result=$(echo "$result" | jq --arg ev "$event" --argjson new "$entries" '.hooks[$ev] += $new')
         done
-    done
+    done < <(find "$dir" -name '*.json' -type f | sort)
 
     # Consolidate entries by matcher for each event type, drop empty events
     result=$(echo "$result" | jq '
@@ -197,15 +195,14 @@ merge_permissions() {
     local dir="$LAYERS_DIR/${LAYER_DIRS[permissions]}"
     local result='{"permissions":{"allow":[],"deny":[]}}'
 
-    for f in "$dir"/*.json; do
-        [ -f "$f" ] || continue
+    while IFS= read -r f; do
         local perms
         perms=$(jq '{allow: (.permissions.allow // []), deny: (.permissions.deny // [])}' "$f")
         result=$(echo "$result" | jq --argjson new "$perms" '
             .permissions.allow = (.permissions.allow + $new.allow | unique) |
             .permissions.deny = (.permissions.deny + $new.deny | unique)
         ')
-    done
+    done < <(find "$dir" -name '*.json' -type f | sort)
 
     echo "$result"
 }

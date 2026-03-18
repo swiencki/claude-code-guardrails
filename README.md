@@ -64,33 +64,28 @@ make test
 
 ```
 layers/
-├── 1-claude-md/              # Soft guidance (CLAUDE.md templates)
-├── 2-hooks/                  # Hard guardrails (JSON fragments, merged by build script)
-│   ├── aws-safety.json       # Blocks destructive AWS CLI operations
-│   ├── azure-safety.json     # Blocks az --mode Complete
-│   ├── ci-cd-protection.json # Blocks CI/CD pipeline modifications
-│   ├── git-safety.json       # Blocks force push, hard reset, checkout ., restore .
-│   ├── kubectl-safety.json   # Blocks kubectl delete, drain, exec
-│   ├── package-publish.json  # Blocks npm/cargo/pip publish
-│   ├── rm-safety.json        # Blocks rm -rf /, ~, *
-│   ├── secret-protection.json # Blocks secret/credential file access
-│   ├── supply-chain.json     # Blocks curl|bash, wget|sh
-│   └── terraform-safety.json # Blocks terraform destroy/apply
-├── 3-permissions/            # Tool-level allow/deny presets
-│   ├── read-only.json        # Read-only access
-│   └── standard-dev.json     # Standard dev (read + test + lint)
-├── 4-sub-agents/             # Scoped agent definitions (copied to .claude/agents/)
-│   └── reviewer.json         # Read-only code reviewer
-├── 5-agent-teams/            # Agent team configs (planned)
-└── 6-enterprise/             # Org policy templates (planned)
+├── 1-claude-md/          # Soft guidance (CLAUDE.md templates)
+├── 2-hooks/              # Hard guardrails (merged into settings.json)
+│   ├── aws/              # AWS CLI safety
+│   ├── azure/            # Azure CLI safety
+│   ├── ci-cd/            # CI/CD pipeline protection
+│   ├── git/              # Git operation safety
+│   ├── kubernetes/       # kubectl safety
+│   ├── packages/         # Package publish protection
+│   ├── security/         # rm, secrets, supply chain
+│   └── terraform/        # Terraform safety
+├── 3-permissions/        # Tool-level allow/deny presets
+│   └── presets/          # Read-only, standard-dev, etc.
+├── 4-sub-agents/         # Scoped agents (copied to .claude/agents/)
+├── 5-agent-teams/        # Agent team configs (planned)
+└── 6-enterprise/         # Org policy templates (planned)
 scripts/
-└── build-settings.sh         # Merges fragments into .claude/settings.json
-tests/
-└── run-tests.sh              # Test runner (90 tests across 7 files)
-.claude/
-└── settings.json             # Generated output (do not edit directly)
-Makefile                      # Build interface
+└── build-settings.sh     # Merges fragments into .claude/settings.json
+tests/                    # 130 tests across 9 files
+Makefile                  # Build interface
 ```
+
+Run `make list` to see all available fragments and their descriptions.
 
 ## The Six Layers
 

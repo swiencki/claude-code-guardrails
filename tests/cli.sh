@@ -12,8 +12,8 @@ assert_exit_code 0 "make list exits 0" $MAKE list
 assert_output_contains "Usage:" "help shows usage" $MAKE help
 assert_output_contains "layers" "help documents layers" $MAKE help
 assert_output_contains "dry=" "help documents dry" $MAKE help
-assert_output_contains "azure-safety.json" "list shows hook fragments" $MAKE list
-assert_output_contains "standard-dev.json" "list shows permission presets" $MAKE list
+assert_output_contains "azure/safety.json" "list shows hook fragments" $MAKE list
+assert_output_contains "presets/standard-dev.json" "list shows permission presets" $MAKE list
 
 # dry on build
 DRY_TARGET="$TEST_TMPDIR/dry-run"
