@@ -1,282 +1,66 @@
 #!/usr/bin/env bash
 #
-# Test suite for the guardrails build system
+# Test runner - executes all test files and aggregates results
 #
-# Usage: ./tests/run-tests.sh  (or: make test)
+# Usage:
+#   ./tests/run-tests.sh           # run all tests
+#   ./tests/run-tests.sh cli       # run a specific test file
+#   ./tests/run-tests.sh cli merge # run multiple test files
+#
+# Or via make:
+#   make test
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MAKE="make -C $REPO_ROOT --no-print-directory"
-SCRIPT="$REPO_ROOT/scripts/build-settings.sh"
-PASSED=0
-FAILED=0
-ERRORS=()
+TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+TEST_FILES=(cli layers merge hooks clean)
+TOTAL_PASSED=0
+TOTAL_FAILED=0
+ALL_ERRORS=()
 
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
-
-# --- Helpers ---
-
-pass() {
-    PASSED=$((PASSED + 1))
-    echo "  PASS: $1"
-}
-
-fail() {
-    FAILED=$((FAILED + 1))
-    ERRORS+=("$1: $2")
-    echo "  FAIL: $1 - $2"
-}
-
-assert_file_exists() {
-    if [ -f "$1" ]; then pass "$2"; else fail "$2" "file not found: $1"; fi
-}
-
-assert_file_not_exists() {
-    if [ ! -f "$1" ]; then pass "$2"; else fail "$2" "file should not exist: $1"; fi
-}
-
-assert_json_has_key() {
-    local file="$1" key="$2" name="$3"
-    if jq -e "$key" "$file" &>/dev/null; then pass "$name"; else fail "$name" "key $key not found"; fi
-}
-
-assert_json_missing_key() {
-    local file="$1" key="$2" name="$3"
-    if jq -e "$key" "$file" &>/dev/null; then fail "$name" "key $key should not exist"; else pass "$name"; fi
-}
-
-assert_json_value() {
-    local file="$1" query="$2" expected="$3" name="$4"
-    local actual
-    actual=$(jq -r "$query" "$file")
-    if [ "$actual" = "$expected" ]; then pass "$name"; else fail "$name" "expected '$expected', got '$actual'"; fi
-}
-
-assert_exit_code() {
-    local expected="$1" name="$2"
-    shift 2
-    if "$@" &>/dev/null; then actual=0; else actual=$?; fi
-    if [ "$actual" -eq "$expected" ]; then pass "$name"; else fail "$name" "expected exit $expected, got $actual"; fi
-}
-
-assert_output_contains() {
-    local pattern="$1" name="$2"
-    shift 2
-    local output
-    output=$("$@" 2>&1) || true
-    if echo "$output" | grep -q "$pattern"; then pass "$name"; else fail "$name" "output missing '$pattern'"; fi
-}
-
-# Helper to build into a fresh temp dir
-build_to() {
-    local dir="$TMPDIR/$1"
-    shift
-    mkdir -p "$dir"
-    $MAKE build TARGET="$dir" "$@" &>/dev/null
-    echo "$dir/.claude/settings.json"
-}
-
-# --- Tests ---
-
-echo "=== CLI Options ==="
-
-assert_exit_code 0 "make help exits 0" $MAKE help
-assert_exit_code 0 "make list exits 0" $MAKE list
-assert_output_contains "Usage:" "help shows usage" $MAKE help
-assert_output_contains "azure-safety.json" "list shows hook fragments" $MAKE list
-assert_output_contains "standard-dev.json" "list shows permission presets" $MAKE list
-assert_output_contains "LAYERS" "help documents LAYERS" $MAKE help
-
-echo ""
-echo "=== Dry Run ==="
-
-DRY_TARGET="$TMPDIR/dry-run"
-mkdir -p "$DRY_TARGET"
-$MAKE dry-run TARGET="$DRY_TARGET" &>/dev/null
-assert_file_not_exists "$DRY_TARGET/.claude/settings.json" "dry-run does not write file"
-assert_output_contains "Would write to" "dry-run shows target path" $MAKE dry-run TARGET="$DRY_TARGET"
-
-echo ""
-echo "=== Build All Layers (default) ==="
-
-OUTPUT=$(build_to "build-all")
-
-assert_file_exists "$OUTPUT" "settings.json created"
-assert_json_has_key "$OUTPUT" '.hooks' "has hooks key"
-assert_json_has_key "$OUTPUT" '.hooks.PreToolUse' "has PreToolUse key"
-assert_json_has_key "$OUTPUT" '.permissions' "has permissions key"
-assert_json_has_key "$OUTPUT" '.permissions.allow' "has permissions.allow"
-assert_json_has_key "$OUTPUT" '.permissions.deny' "has permissions.deny"
-
-echo ""
-echo "=== Single Layer: hooks ==="
-
-OUTPUT=$(build_to "hooks-only" LAYERS=hooks)
-
-assert_file_exists "$OUTPUT" "settings.json created"
-assert_json_has_key "$OUTPUT" '.hooks.PreToolUse' "has hooks"
-assert_json_missing_key "$OUTPUT" '.permissions' "no permissions key"
-
-echo ""
-echo "=== Single Layer: permissions ==="
-
-OUTPUT=$(build_to "perms-only" LAYERS=permissions)
-
-assert_file_exists "$OUTPUT" "settings.json created"
-assert_json_has_key "$OUTPUT" '.permissions' "has permissions"
-assert_json_missing_key "$OUTPUT" '.hooks' "no hooks key"
-
-echo ""
-echo "=== Multiple Layers: hooks,permissions ==="
-
-OUTPUT=$(build_to "hooks-perms" LAYERS=hooks,permissions)
-
-assert_file_exists "$OUTPUT" "settings.json created"
-assert_json_has_key "$OUTPUT" '.hooks.PreToolUse' "has hooks"
-assert_json_has_key "$OUTPUT" '.permissions' "has permissions"
-
-echo ""
-echo "=== Invalid Layer ==="
-
-assert_exit_code 2 "invalid layer exits non-zero" $MAKE build TARGET="$TMPDIR/invalid-layer" LAYERS=bogus
-
-echo ""
-echo "=== Hook Consolidation ==="
-
-OUTPUT=$(build_to "consolidation")
-
-BASH_MATCHER_COUNT=$(jq '[.hooks.PreToolUse[] | select(.matcher == "Bash")] | length' "$OUTPUT")
-if [ "$BASH_MATCHER_COUNT" -eq 1 ]; then
-    pass "Bash hooks consolidated under single matcher"
-else
-    fail "Bash hooks consolidated under single matcher" "found $BASH_MATCHER_COUNT, expected 1"
+# If specific test files are requested, use those
+if [ $# -gt 0 ]; then
+    TEST_FILES=("$@")
 fi
 
-BASH_HOOK_COUNT=$(jq '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' "$OUTPUT")
-if [ "$BASH_HOOK_COUNT" -ge 4 ]; then
-    pass "multiple Bash hooks merged ($BASH_HOOK_COUNT total)"
-else
-    fail "multiple Bash hooks merged" "only $BASH_HOOK_COUNT hooks, expected at least 4"
-fi
+for test_file in "${TEST_FILES[@]}"; do
+    script="$TESTS_DIR/${test_file}.sh"
+    if [ ! -f "$script" ]; then
+        echo "Error: test file not found: $script" >&2
+        exit 1
+    fi
 
-echo ""
-echo "=== Merge With Existing Settings ==="
+    # Run test file, capture output
+    output=$(bash "$script" 2>&1) || true
 
-MERGE_TARGET="$TMPDIR/merge-existing"
-mkdir -p "$MERGE_TARGET/.claude"
-cat > "$MERGE_TARGET/.claude/settings.json" <<'EXISTING'
-{
-  "model": "claude-opus-4-6[1m]",
-  "alwaysThinkingEnabled": true,
-  "enabledPlugins": {
-    "jira@ai-helpers": true
-  }
-}
-EXISTING
+    # Print test output (everything except the results line)
+    echo "$output" | grep -v "^[0-9]" | grep -v "^ERROR:" || true
 
-$MAKE build TARGET="$MERGE_TARGET" &>/dev/null
-OUTPUT="$MERGE_TARGET/.claude/settings.json"
+    # Parse results from last numeric line
+    results=$(echo "$output" | grep "^[0-9]" | tail -1)
+    if [ -n "$results" ]; then
+        passed=$(echo "$results" | awk '{print $1}')
+        failed=$(echo "$results" | awk '{print $2}')
+        TOTAL_PASSED=$((TOTAL_PASSED + passed))
+        TOTAL_FAILED=$((TOTAL_FAILED + failed))
+    fi
 
-assert_json_value "$OUTPUT" '.model' 'claude-opus-4-6[1m]' "preserves model"
-assert_json_value "$OUTPUT" '.alwaysThinkingEnabled' 'true' "preserves alwaysThinkingEnabled"
-assert_json_value "$OUTPUT" '.enabledPlugins["jira@ai-helpers"]' 'true' "preserves enabledPlugins"
-assert_json_has_key "$OUTPUT" '.hooks.PreToolUse' "adds hooks"
-assert_json_has_key "$OUTPUT" '.permissions' "adds permissions"
+    # Collect errors
+    while IFS= read -r line; do
+        ALL_ERRORS+=("${line#ERROR:}")
+    done < <(echo "$output" | grep "^ERROR:" || true)
 
-echo ""
-echo "=== Merge Single Layer Into Existing ==="
+    echo ""
+done
 
-MERGE_HOOKS_TARGET="$TMPDIR/merge-hooks-only"
-mkdir -p "$MERGE_HOOKS_TARGET/.claude"
-cat > "$MERGE_HOOKS_TARGET/.claude/settings.json" <<'EXISTING'
-{
-  "model": "claude-opus-4-6[1m]",
-  "permissions": {
-    "allow": ["Read"],
-    "deny": ["Bash(rm *)"]
-  }
-}
-EXISTING
-
-$MAKE build TARGET="$MERGE_HOOKS_TARGET" LAYERS=hooks &>/dev/null
-OUTPUT="$MERGE_HOOKS_TARGET/.claude/settings.json"
-
-assert_json_value "$OUTPUT" '.model' 'claude-opus-4-6[1m]' "preserves model"
-assert_json_has_key "$OUTPUT" '.hooks.PreToolUse' "adds hooks"
-# Existing permissions should be untouched since we only installed hooks
-assert_json_value "$OUTPUT" '.permissions.allow | length' '1' "existing permissions.allow untouched"
-assert_json_value "$OUTPUT" '.permissions.deny | length' '1' "existing permissions.deny untouched"
-
-echo ""
-echo "=== Idempotency ==="
-
-IDEM_TARGET="$TMPDIR/idempotent"
-mkdir -p "$IDEM_TARGET"
-$MAKE build TARGET="$IDEM_TARGET" &>/dev/null
-FIRST_COUNT=$(jq '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' "$IDEM_TARGET/.claude/settings.json")
-
-$MAKE build TARGET="$IDEM_TARGET" &>/dev/null
-SECOND_COUNT=$(jq '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' "$IDEM_TARGET/.claude/settings.json")
-
-if [ "$FIRST_COUNT" -eq "$SECOND_COUNT" ]; then
-    pass "running twice does not duplicate hooks ($FIRST_COUNT both times)"
-else
-    fail "running twice does not duplicate hooks" "first: $FIRST_COUNT, second: $SECOND_COUNT"
-fi
-
-echo ""
-echo "=== Specific Hook Content ==="
-
-OUTPUT=$(build_to "content")
-
-assert_output_contains "force" "contains force push hook" jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[].statusMessage' "$OUTPUT"
-assert_output_contains "Complete" "contains az --mode Complete hook" jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[].statusMessage' "$OUTPUT"
-assert_output_contains "secret" "contains secret protection hook" jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[].statusMessage' "$OUTPUT"
-
-WRITE_COUNT=$(jq '[.hooks.PreToolUse[] | select(.matcher == "Write")] | length' "$OUTPUT")
-if [ "$WRITE_COUNT" -eq 1 ]; then pass "Write matcher present"; else fail "Write matcher present" "found $WRITE_COUNT"; fi
-
-EDIT_COUNT=$(jq '[.hooks.PreToolUse[] | select(.matcher == "Edit")] | length' "$OUTPUT")
-if [ "$EDIT_COUNT" -eq 1 ]; then pass "Edit matcher present"; else fail "Edit matcher present" "found $EDIT_COUNT"; fi
-
-echo ""
-echo "=== Invalid Target ==="
-
-assert_exit_code 2 "nonexistent target exits non-zero" $MAKE build TARGET=/tmp/does-not-exist-at-all
-
-echo ""
-echo "=== Valid JSON Output ==="
-
-OUTPUT=$(build_to "valid-json")
-
-if jq empty "$OUTPUT" 2>/dev/null; then pass "output is valid JSON"; else fail "output is valid JSON" "jq parse failed"; fi
-
-echo ""
-echo "=== User Target Path ==="
-
-assert_output_contains "$HOME/.claude/settings.json" "TARGET=user resolves to home dir" $MAKE dry-run TARGET=user
-
-echo ""
-echo "=== Clean ==="
-
-$MAKE build &>/dev/null
-assert_file_exists "$REPO_ROOT/.claude/settings.json" "settings.json exists before clean"
-$MAKE clean &>/dev/null
-assert_file_not_exists "$REPO_ROOT/.claude/settings.json" "settings.json removed after clean"
-
-# --- Summary ---
-
-echo ""
 echo "================================"
-echo "  Results: $PASSED passed, $FAILED failed"
+echo "  Results: $TOTAL_PASSED passed, $TOTAL_FAILED failed"
 echo "================================"
 
-if [ $FAILED -gt 0 ]; then
+if [ $TOTAL_FAILED -gt 0 ]; then
     echo ""
     echo "Failures:"
-    for err in "${ERRORS[@]}"; do
+    for err in "${ALL_ERRORS[@]}"; do
         echo "  - $err"
     done
     exit 1
