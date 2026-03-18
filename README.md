@@ -23,20 +23,17 @@ brew install jq shellcheck make
 ## Quick Start
 
 ```bash
-# Show all available commands and options
-make help
-
-# Initialize a project with guardrails + CLAUDE.md
-make init target=~/my-project
-
-# List available guardrail fragments
-make list
+# Preview what would be generated (no files written)
+make build dry=1
 
 # Build all layers (merges with existing settings)
 make build
 
-# Preview what would be generated (no files written)
-make build dry=1
+# Build from a profile (curated set of fragments)
+make build profile=go-dev
+
+# Initialize a project with a profile + CLAUDE.md
+make init profile=infra-dev target=~/my-project
 
 # Install to your user-level settings (applies to all projects)
 make build target=user
@@ -48,6 +45,11 @@ make build layers=hooks,permissions       # hooks + permissions
 # Clean install (replace existing guardrails)
 make build overwrite=1
 
+# Browse what's available
+make list                                 # all fragments
+make profiles                             # all profiles
+make show fragment=aws/safety.json        # inspect a fragment
+
 # Remove layers from an existing settings.json
 make remove layers=hooks target=user
 
@@ -58,16 +60,22 @@ make test
 ## Project Structure
 
 ```
+profiles/                 # Curated fragment bundles
+├── go-dev.json           # Go development
+├── python-dev.json       # Python development
+├── infra-dev.json        # Infrastructure/platform work
+└── readonly-review.json  # Code review and audit
 layers/
 ├── 1-claude-md/          # Soft guidance (CLAUDE.md templates)
 ├── 2-hooks/              # Hard guardrails (merged into settings.json)
 │   ├── aws/              # AWS CLI safety
 │   ├── azure/            # Azure CLI safety
-│   ├── ci-cd/            # CI/CD pipeline protection
-│   ├── git/              # Git operation safety
-│   ├── kubernetes/       # kubectl safety
+│   ├── ci-cd/            # CI/CD pipeline and make deploy protection
+│   ├── gh/               # GitHub CLI (merge, workflow, release)
+│   ├── git/              # Git safety and protected branch guards
+│   ├── kubernetes/       # kubectl safety and prod context protection
 │   ├── packages/         # Package publish protection
-│   ├── security/         # rm, secrets, supply chain
+│   ├── security/         # rm, secrets, credentials, env, supply chain
 │   └── terraform/        # Terraform safety
 ├── 3-permissions/        # Tool-level allow/deny presets
 │   └── presets/          # Read-only, standard-dev, etc.
@@ -76,11 +84,11 @@ layers/
 └── 6-enterprise/         # Org policy templates (planned)
 scripts/
 └── build-settings.sh     # Merges fragments into .claude/settings.json
-tests/                    # 130 tests across 9 files
-Makefile                  # Build interface
+tests/
+Makefile
 ```
 
-Run `make list` to see all available fragments and their descriptions.
+Run `make list` to see all fragments, `make profiles` to see profiles.
 
 ## The Six Layers
 
@@ -164,6 +172,94 @@ Multiple independent Claude sessions that coordinate and divide work in parallel
 Organization-managed policies that override user and project settings. Can restrict the use of `--dangerously-skip-permissions` across all member CLIs. *(Planned)*
 
 **Resolution priority:** Enterprise > User > Project > Plugin.
+
+## Profiles
+
+Profiles are curated bundles of fragments for common workflows. Instead of picking individual fragments, choose a profile that matches how you work.
+
+```bash
+# See what's available
+make profiles
+
+# Preview a profile
+make build profile=go-dev dry=1
+
+# Install a profile
+make build profile=go-dev
+```
+
+| Profile | Hooks | Permissions | Sub-agents | Use case |
+|---|---|---|---|---|
+| `go-dev` | git, security, packages | standard-dev | reviewer, explorer | Go app/backend development |
+| `python-dev` | git, security, packages | standard-dev | reviewer, docs-reviewer | Python development |
+| `infra-dev` | git, security, terraform, k8s, azure, aws, ci-cd, gh | standard-dev | explorer, release-reviewer | Infrastructure/platform work |
+| `readonly-review` | secret scanning only | read-only | reviewer, docs-reviewer, explorer | Code review, audit, spelunking |
+
+Profiles use the same merge behavior as layers - they combine with existing settings by default, or replace them with `overwrite=1`.
+
+## Hooks vs Permissions - When to Use Which
+
+The two most commonly used guardrail layers are hooks and permissions. They solve different problems and work best together.
+
+### Hooks
+
+- Shell scripts that run before/after tool calls via lifecycle events (e.g., `PreToolUse`)
+- **Never prompt the user** - they silently block (non-zero exit) or silently allow
+- Can output an error message explaining why something was blocked
+- Full shell power for matching - regex, jq, grep, any logic you need
+- Hard to bypass - catches command variants like `--force`, `-f`, `--force-with-lease` with a single regex
+- Slight performance overhead since each hook spawns a shell process
+- 12 lifecycle events available (pre/post for each tool type)
+
+**Use hooks when:**
+- You need pattern matching to catch dangerous flags regardless of position (e.g., `--mode Complete` anywhere in an `az` command)
+- You want to block a category of behavior, not just one exact string
+- You need context-aware logic (e.g., block `kubectl delete` only in production namespaces)
+- You want to validate content before it's committed (lint, secret scanning)
+- The rule is safety-critical and must not be bypassable
+
+**Real-world examples:**
+- Block `az deployment group create --mode Complete` (deletes all resources not in template)
+- Block `git push --force` and all its variants (`-f`, `--force-with-lease`, `--force-if-includes`)
+- Prevent committing files containing secrets or API keys
+- Block `terraform destroy` without an explicit plan file
+
+### Permissions
+
+- Declarative allow/deny/ask rules matched against tool name + command string
+- **Three modes:**
+  - `allow` - never prompts, always runs automatically
+  - `deny` - never prompts, always blocks silently
+  - `ask` - always prompts the user for approval
+- Exact string prefix matching only - no regex, no pattern logic
+- Instant evaluation (string comparison, no shell overhead)
+- Easy to bypass with command variants since matching is literal
+- Scoped per tool (Bash, Read, Write, etc.)
+
+**Use permissions when:**
+- You want common read-only commands to run without prompting every time (e.g., `git status`, `git diff`, `git log`)
+- You want simple "always block" rules for commands you never use (e.g., `rm -rf /`)
+- You want to require manual approval for specific tools or commands (ask mode)
+- You need zero-overhead, instant evaluation
+- The exact command string is predictable and won't have variants
+
+**Real-world examples:**
+- Auto-allow `git status`, `git diff`, `git log`, `git branch` (no more approval prompts)
+- Auto-deny `rm -rf` as a simple safety net
+- Ask before any `git push` or `git commit`
+- Allow all Read tool usage but ask before Write
+
+### Using them together
+
+Permissions and hooks are complementary, not competing. A strong setup uses both:
+
+- **Permissions** handle the routine - auto-allow safe commands so Claude isn't constantly asking for approval
+- **Hooks** handle the dangerous - pattern-match and block destructive operations that permissions can't reliably catch
+
+```
+Permissions (fast, simple):     "allow git status, git diff, git log"
+Hooks (thorough, pattern-based): "block any command containing --force or --mode Complete"
+```
 
 ## Choosing the Right Layer
 

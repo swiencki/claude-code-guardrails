@@ -1,0 +1,24 @@
+{
+  "description": "Python development with safety guardrails and package publish protection.",
+  "intendedUse": "Python application development. Blocks accidental publishes via pip/twine/poetry and includes standard security hooks.",
+  "layers": ["hooks", "permissions", "sub-agents"],
+  "fragments": {
+    "hooks": [
+      "git/safety.json",
+      "git/prod-branch.json",
+      "security/rm-safety.json",
+      "security/secret-protection.json",
+      "security/supply-chain.json",
+      "security/credential-files.json",
+      "security/token-echo.json",
+      "packages/publish.json"
+    ],
+    "permissions": [
+      "presets/standard-dev.json"
+    ],
+    "sub-agents": [
+      "reviewer.json",
+      "docs-reviewer.json"
+    ]
+  }
+}

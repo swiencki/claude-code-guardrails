@@ -1,0 +1,17 @@
+{
+  "description": "Blocks make deploy, make release, make apply, and make promote targets.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"make\\\\s+(deploy|release|apply|promote)\") | not'",
+            "statusMessage": "Checking for dangerous make targets"
+          }
+        ]
+      }
+    ]
+  }
+}

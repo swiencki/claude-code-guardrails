@@ -1,0 +1,17 @@
+{
+  "description": "Blocks gh workflow run for prod and stage workflows.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"gh\\\\s+workflow\\\\s+run.*(prod|production|stage|staging)\") | not'",
+            "statusMessage": "Checking for gh workflow run on prod/stage"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "description": "Blocks gh pr merge to protected branches (main, master, prod, release/*).",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"gh\\\\s+pr\\\\s+merge.*(-b|--base)\\\\s*(main|master|prod|release)\") | not'",
+            "statusMessage": "Checking for gh pr merge to protected branch"
+          }
+        ]
+      }
+    ]
+  }
+}

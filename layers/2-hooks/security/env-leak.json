@@ -1,0 +1,17 @@
+{
+  "description": "Blocks commands that dump environment variables which may contain secrets.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"^(env|printenv|set|export -p)\\\\s*$\") | not'",
+            "statusMessage": "Checking for environment variable dump"
+          }
+        ]
+      }
+    ]
+  }
+}

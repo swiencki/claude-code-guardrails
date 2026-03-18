@@ -36,10 +36,10 @@ OUTPUT="$MERGE_TARGET/.claude/settings.json"
 
 # Merge should keep the custom hook alongside the new ones
 BASH_HOOK_COUNT=$(jq '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' "$OUTPUT")
-if [ "$BASH_HOOK_COUNT" -gt 11 ]; then
+if [ "$BASH_HOOK_COUNT" -gt 22 ]; then
     pass "merge: custom hook preserved alongside new hooks ($BASH_HOOK_COUNT total)"
 else
-    fail "merge: custom hook preserved alongside new hooks" "expected > 11, got $BASH_HOOK_COUNT"
+    fail "merge: custom hook preserved alongside new hooks" "expected > 22, got $BASH_HOOK_COUNT"
 fi
 assert_json_value "$OUTPUT" '.model' 'claude-opus-4-6[1m]' "merge: preserves model"
 
@@ -69,12 +69,12 @@ EXISTING
 $MAKE build target="$OW_TARGET" layers=hooks overwrite=1 &>/dev/null
 OUTPUT="$OW_TARGET/.claude/settings.json"
 
-# Overwrite should have exactly 11 hooks (custom one gone)
+# Overwrite should have exactly 22 hooks (custom one gone)
 BASH_HOOK_COUNT=$(jq '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' "$OUTPUT")
-if [ "$BASH_HOOK_COUNT" -eq 11 ]; then
-    pass "overwrite: custom hook replaced (exactly 11 hooks)"
+if [ "$BASH_HOOK_COUNT" -eq 22 ]; then
+    pass "overwrite: custom hook replaced (exactly 22 hooks)"
 else
-    fail "overwrite: custom hook replaced" "expected 11, got $BASH_HOOK_COUNT"
+    fail "overwrite: custom hook replaced" "expected 22, got $BASH_HOOK_COUNT"
 fi
 assert_json_value "$OUTPUT" '.model' 'claude-opus-4-6[1m]' "overwrite: preserves model"
 

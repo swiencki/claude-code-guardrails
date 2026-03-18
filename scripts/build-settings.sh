@@ -10,6 +10,8 @@
 #   ./scripts/build-settings.sh --remove --layers hooks          # remove hooks from settings
 #   ./scripts/build-settings.sh --target ~/my-project            # install all to a project
 #   ./scripts/build-settings.sh --dry-run                        # preview without writing
+#   ./scripts/build-settings.sh --profile go-dev                  # install a profile
+#   ./scripts/build-settings.sh --list-profiles                  # list available profiles
 #   ./scripts/build-settings.sh --list                           # list available fragments
 #
 # The script merges guardrail fragments into the target settings.json while
@@ -24,9 +26,11 @@ LAYERS_DIR="$REPO_ROOT/layers"
 # Defaults
 TARGET="project"
 LAYERS=""
+PROFILE=""
 DRY_RUN=false
 OVERWRITE=false
 ACTION="build"
+PROFILES_DIR="$REPO_ROOT/profiles"
 
 # Available layers (mapped to directory names)
 declare -A LAYER_DIRS=(
@@ -66,6 +70,9 @@ Options:
   --remove                Remove selected layers from target settings.json
   --dry-run               Preview the merged output without writing
   --list                  List available fragments per layer
+  --show <fragment>       Show the full contents of a fragment (e.g. aws/safety.json)
+  --profile <name>        Build from a profile (e.g. go-dev, infra-dev)
+  --list-profiles         List available profiles
   --help, -h              Show this help
 
 Examples:
@@ -86,6 +93,15 @@ Examples:
 
   # Preview what hooks would look like
   ./scripts/build-settings.sh --layers hooks --dry-run
+
+  # Show the contents of a specific fragment
+  ./scripts/build-settings.sh --show aws/safety.json
+
+  # Install a profile
+  ./scripts/build-settings.sh --profile go-dev --target ~/my-project
+
+  # List available profiles
+  ./scripts/build-settings.sh --list-profiles
 USAGE
 }
 
@@ -156,6 +172,95 @@ list_fragments() {
     done
 }
 
+show_fragment() {
+    local query="$1"
+    local matches=()
+
+    # Search all layer directories for matching fragments
+    while IFS= read -r f; do
+        local rel="${f#"$LAYERS_DIR"/}"
+        # Match against the relative path (e.g. "aws/safety.json" matches "2-hooks/aws/safety.json")
+        if [[ "$rel" == *"$query"* ]]; then
+            matches+=("$f")
+        fi
+    done < <(find "$LAYERS_DIR" -name '*.json' -type f | sort)
+
+    if [ ${#matches[@]} -eq 0 ]; then
+        echo "No fragment matching '$query' found." >&2
+        echo "" >&2
+        echo "Run --list to see available fragments." >&2
+        exit 1
+    fi
+
+    if [ ${#matches[@]} -gt 1 ]; then
+        echo "Multiple fragments match '$query':"
+        echo ""
+        for f in "${matches[@]}"; do
+            echo "  ${f#"$LAYERS_DIR"/}"
+        done
+        echo ""
+        echo "Be more specific (e.g. --show azure/safety.json)"
+        exit 1
+    fi
+
+    local file="${matches[0]}"
+    local rel="${file#"$LAYERS_DIR"/}"
+    local desc
+    desc=$(jq -r '.description // "No description"' "$file")
+
+    echo "Fragment: $rel"
+    echo "Description: $desc"
+    echo ""
+    jq '.' "$file"
+}
+
+list_profiles() {
+    echo "Available profiles:"
+    echo ""
+    for f in "$PROFILES_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        local name desc use
+        name=$(basename "$f" .json)
+        desc=$(jq -r '.description // "No description"' "$f")
+        use=$(jq -r '.intendedUse // ""' "$f")
+        printf "  %-20s %s\n" "$name" "$desc"
+        if [ -n "$use" ]; then
+            printf "  %-20s %s\n" "" "$use"
+        fi
+        echo ""
+    done
+}
+
+resolve_profile() {
+    local name="$1"
+    local profile_file="$PROFILES_DIR/${name}.json"
+
+    if [ ! -f "$profile_file" ]; then
+        echo "Error: profile '$name' not found at $profile_file" >&2
+        echo "Run --list-profiles to see available profiles." >&2
+        exit 1
+    fi
+
+    echo "$profile_file"
+}
+
+# Collect fragment files for a profile's layer
+# Returns newline-separated absolute paths
+profile_fragments() {
+    local profile_file="$1"
+    local layer="$2"
+    local dir="$LAYERS_DIR/${LAYER_DIRS[$layer]}"
+
+    jq -r --arg layer "$layer" '.fragments[$layer] // [] | .[]' "$profile_file" | while IFS= read -r frag; do
+        local full="$dir/$frag"
+        if [ ! -f "$full" ]; then
+            echo "Warning: fragment '$frag' not found in $layer layer" >&2
+            continue
+        fi
+        echo "$full"
+    done
+}
+
 merge_hooks() {
     local dir="$LAYERS_DIR/${LAYER_DIRS[hooks]}"
     local result='{"hooks":{}}'
@@ -164,13 +269,26 @@ merge_hooks() {
         result=$(echo "$result" | jq --arg ev "$event" '.hooks[$ev] = []')
     done
 
-    while IFS= read -r f; do
-        for event in $HOOK_EVENTS; do
-            local entries
-            entries=$(jq --arg ev "$event" '.hooks[$ev] // []' "$f")
-            result=$(echo "$result" | jq --arg ev "$event" --argjson new "$entries" '.hooks[$ev] += $new')
-        done
-    done < <(find "$dir" -name '*.json' -type f | sort)
+    if [ -n "$PROFILE" ]; then
+        local profile_file
+        profile_file=$(resolve_profile "$PROFILE")
+        while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            for event in $HOOK_EVENTS; do
+                local entries
+                entries=$(jq --arg ev "$event" '.hooks[$ev] // []' "$f")
+                result=$(echo "$result" | jq --arg ev "$event" --argjson new "$entries" '.hooks[$ev] += $new')
+            done
+        done < <(profile_fragments "$profile_file" "hooks")
+    else
+        while IFS= read -r f; do
+            for event in $HOOK_EVENTS; do
+                local entries
+                entries=$(jq --arg ev "$event" '.hooks[$ev] // []' "$f")
+                result=$(echo "$result" | jq --arg ev "$event" --argjson new "$entries" '.hooks[$ev] += $new')
+            done
+        done < <(find "$dir" -name '*.json' -type f | sort)
+    fi
 
     # Consolidate entries by matcher for each event type, drop empty events
     result=$(echo "$result" | jq '
@@ -195,14 +313,28 @@ merge_permissions() {
     local dir="$LAYERS_DIR/${LAYER_DIRS[permissions]}"
     local result='{"permissions":{"allow":[],"deny":[]}}'
 
-    while IFS= read -r f; do
-        local perms
-        perms=$(jq '{allow: (.permissions.allow // []), deny: (.permissions.deny // [])}' "$f")
-        result=$(echo "$result" | jq --argjson new "$perms" '
-            .permissions.allow = (.permissions.allow + $new.allow | unique) |
-            .permissions.deny = (.permissions.deny + $new.deny | unique)
-        ')
-    done < <(find "$dir" -name '*.json' -type f | sort)
+    if [ -n "$PROFILE" ]; then
+        local profile_file
+        profile_file=$(resolve_profile "$PROFILE")
+        while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            local perms
+            perms=$(jq '{allow: (.permissions.allow // []), deny: (.permissions.deny // [])}' "$f")
+            result=$(echo "$result" | jq --argjson new "$perms" '
+                .permissions.allow = (.permissions.allow + $new.allow | unique) |
+                .permissions.deny = (.permissions.deny + $new.deny | unique)
+            ')
+        done < <(profile_fragments "$profile_file" "permissions")
+    else
+        while IFS= read -r f; do
+            local perms
+            perms=$(jq '{allow: (.permissions.allow // []), deny: (.permissions.deny // [])}' "$f")
+            result=$(echo "$result" | jq --argjson new "$perms" '
+                .permissions.allow = (.permissions.allow + $new.allow | unique) |
+                .permissions.deny = (.permissions.deny + $new.deny | unique)
+            ')
+        done < <(find "$dir" -name '*.json' -type f | sort)
+    fi
 
     echo "$result"
 }
@@ -211,12 +343,26 @@ install_sub_agents() {
     local src_dir="$LAYERS_DIR/${LAYER_DIRS[sub-agents]}"
     local dest_dir="$1/agents"
     local count=0
+    local files=()
+
+    if [ -n "$PROFILE" ]; then
+        local profile_file
+        profile_file=$(resolve_profile "$PROFILE")
+        while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            files+=("$f")
+        done < <(profile_fragments "$profile_file" "sub-agents")
+    else
+        for f in "$src_dir"/*.json; do
+            [ -f "$f" ] || continue
+            files+=("$f")
+        done
+    fi
 
     if $DRY_RUN; then
         echo ""
         echo "Sub-agents (would copy to $dest_dir/):"
-        for f in "$src_dir"/*.json; do
-            [ -f "$f" ] || continue
+        for f in "${files[@]}"; do
             local name desc
             name=$(basename "$f")
             desc=$(jq -r '.description // "No description"' "$f")
@@ -230,8 +376,7 @@ install_sub_agents() {
     fi
 
     mkdir -p "$dest_dir"
-    for f in "$src_dir"/*.json; do
-        [ -f "$f" ] || continue
+    for f in "${files[@]}"; do
         cp "$f" "$dest_dir/"
         count=$((count + 1))
     done
@@ -348,6 +493,18 @@ while [ $# -gt 0 ]; do
             list_fragments
             exit 0
             ;;
+        --show)
+            show_fragment "${2:?--show requires a fragment name (e.g. aws/safety.json)}"
+            exit 0
+            ;;
+        --profile)
+            PROFILE="${2:?--profile requires a name (e.g. go-dev, infra-dev)}"
+            shift 2
+            ;;
+        --list-profiles)
+            list_profiles
+            exit 0
+            ;;
         --help|-h)
             usage
             exit 0
@@ -359,6 +516,20 @@ while [ $# -gt 0 ]; do
             ;;
     esac
 done
+
+# If a profile is set, derive layers from it
+if [ -n "$PROFILE" ]; then
+    if [ -n "$LAYERS" ]; then
+        echo "Error: --profile and --layers cannot be used together." >&2
+        echo "Profiles define their own layers." >&2
+        exit 1
+    fi
+    local_profile=$(resolve_profile "$PROFILE")
+    LAYERS=$(jq -r '.layers // [] | join(",")' "$local_profile")
+    echo "Profile: $PROFILE"
+    jq -r '.description // ""' "$local_profile"
+    echo ""
+fi
 
 TARGET_DIR=$(resolve_target_dir)
 OUTPUT="$TARGET_DIR/settings.json"

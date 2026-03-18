@@ -1,0 +1,17 @@
+{
+  "description": "Blocks echo/printf of variables likely containing secrets or tokens.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(echo|printf)\\\\s+.*\\\\$(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIALS|AUTH)\") | not'",
+            "statusMessage": "Checking for token/secret echo"
+          }
+        ]
+      }
+    ]
+  }
+}

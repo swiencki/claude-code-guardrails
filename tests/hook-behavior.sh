@@ -203,4 +203,128 @@ test_hook "security/secret-protection.json" "PreToolUse" 0 0 \
     '{"command":"echo access_token"}' allow \
     "secret-protection: allows echo with token keyword (no false positive)"
 
+# --- credential-files.json ---
+
+test_hook "security/credential-files.json" "PreToolUse" 0 0 \
+    '{"command":"cat ~/.ssh/id_rsa"}' block \
+    "credential-files: blocks cat ~/.ssh/id_rsa"
+
+test_hook "security/credential-files.json" "PreToolUse" 0 0 \
+    '{"command":"cat ~/.aws/credentials"}' block \
+    "credential-files: blocks cat ~/.aws/credentials"
+
+test_hook "security/credential-files.json" "PreToolUse" 0 0 \
+    '{"command":"less ~/.docker/config.json"}' block \
+    "credential-files: blocks less ~/.docker/config.json"
+
+test_hook "security/credential-files.json" "PreToolUse" 0 0 \
+    '{"command":"cat README.md"}' allow \
+    "credential-files: allows cat README.md"
+
+# --- token-echo.json ---
+
+test_hook "security/token-echo.json" "PreToolUse" 0 0 \
+    '{"command":"echo $SECRET_VALUE"}' block \
+    "token-echo: blocks echo \$SECRET"
+
+test_hook "security/token-echo.json" "PreToolUse" 0 0 \
+    '{"command":"echo $API_KEY_VALUE"}' block \
+    "token-echo: blocks echo \$API_KEY"
+
+test_hook "security/token-echo.json" "PreToolUse" 0 0 \
+    '{"command":"echo $TOKEN_VALUE"}' block \
+    "token-echo: blocks echo \$TOKEN"
+
+test_hook "security/token-echo.json" "PreToolUse" 0 0 \
+    '{"command":"echo hello world"}' allow \
+    "token-echo: allows echo hello world"
+
+# --- env-leak.json ---
+
+test_hook "security/env-leak.json" "PreToolUse" 0 0 \
+    '{"command":"env"}' block \
+    "env-leak: blocks env"
+
+test_hook "security/env-leak.json" "PreToolUse" 0 0 \
+    '{"command":"printenv"}' block \
+    "env-leak: blocks printenv"
+
+test_hook "security/env-leak.json" "PreToolUse" 0 0 \
+    '{"command":"export -p"}' block \
+    "env-leak: blocks export -p"
+
+test_hook "security/env-leak.json" "PreToolUse" 0 0 \
+    '{"command":"env | grep PATH"}' allow \
+    "env-leak: allows env with pipe (targeted query)"
+
+# --- make-deploy.json ---
+
+test_hook "ci-cd/make-deploy.json" "PreToolUse" 0 0 \
+    '{"command":"make deploy"}' block \
+    "make-deploy: blocks make deploy"
+
+test_hook "ci-cd/make-deploy.json" "PreToolUse" 0 0 \
+    '{"command":"make release"}' block \
+    "make-deploy: blocks make release"
+
+test_hook "ci-cd/make-deploy.json" "PreToolUse" 0 0 \
+    '{"command":"make promote"}' block \
+    "make-deploy: blocks make promote"
+
+test_hook "ci-cd/make-deploy.json" "PreToolUse" 0 0 \
+    '{"command":"make test"}' allow \
+    "make-deploy: allows make test"
+
+# --- gh/protected-merge.json ---
+
+test_hook "gh/protected-merge.json" "PreToolUse" 0 0 \
+    '{"command":"gh pr merge 123 -b main"}' block \
+    "gh-merge: blocks merge to main"
+
+test_hook "gh/protected-merge.json" "PreToolUse" 0 0 \
+    '{"command":"gh pr merge 123 --base prod"}' block \
+    "gh-merge: blocks merge to prod"
+
+test_hook "gh/protected-merge.json" "PreToolUse" 0 0 \
+    '{"command":"gh pr merge 123 -b feature-branch"}' allow \
+    "gh-merge: allows merge to feature branch"
+
+# --- gh/workflow-dispatch.json ---
+
+test_hook "gh/workflow-dispatch.json" "PreToolUse" 0 0 \
+    '{"command":"gh workflow run deploy-prod.yml"}' block \
+    "gh-workflow: blocks workflow run on prod"
+
+test_hook "gh/workflow-dispatch.json" "PreToolUse" 0 0 \
+    '{"command":"gh workflow run staging-deploy.yml"}' block \
+    "gh-workflow: blocks workflow run on staging"
+
+test_hook "gh/workflow-dispatch.json" "PreToolUse" 0 0 \
+    '{"command":"gh workflow run tests.yml"}' allow \
+    "gh-workflow: allows workflow run for tests"
+
+# --- gh/release-publish.json ---
+
+test_hook "gh/release-publish.json" "PreToolUse" 0 0 \
+    '{"command":"gh release create v1.0.0"}' block \
+    "gh-release: blocks gh release create"
+
+test_hook "gh/release-publish.json" "PreToolUse" 0 0 \
+    '{"command":"gh release list"}' allow \
+    "gh-release: allows gh release list"
+
+# --- kubernetes/prod-context.json ---
+
+test_hook "kubernetes/prod-context.json" "PreToolUse" 0 0 \
+    '{"command":"kubectl delete pod my-pod --namespace prod"}' block \
+    "k8s-prod: blocks delete in prod namespace"
+
+test_hook "kubernetes/prod-context.json" "PreToolUse" 0 0 \
+    '{"command":"kubectl apply -f deploy.yaml --context production"}' block \
+    "k8s-prod: blocks apply in production context"
+
+test_hook "kubernetes/prod-context.json" "PreToolUse" 0 0 \
+    '{"command":"kubectl get pods --namespace prod"}' allow \
+    "k8s-prod: allows get in prod namespace"
+
 print_results
