@@ -23,40 +23,35 @@ brew install jq shellcheck make
 ## Quick Start
 
 ```bash
+# Show all available commands and options
+make help
+
 # Initialize a project with guardrails + CLAUDE.md
 make init target=~/my-project
 
 # List available guardrail fragments
 make list
 
-# Build all layers to this repo's .claude/settings.json
+# Build all layers (merges with existing settings)
 make build
 
 # Preview what would be generated (no files written)
 make build dry=1
 
 # Install to your user-level settings (applies to all projects)
-# Merges with existing settings - preserves model, plugins, etc.
 make build target=user
-
-# Install to a specific project
-make build target=~/my-project
 
 # Install specific layers only
 make build layers=hooks                   # hooks only
-make build layers=permissions             # permissions only
-make build layers=sub-agents              # sub-agents only
 make build layers=hooks,permissions       # hooks + permissions
 
-# Combine layer selection with target
-make build layers=hooks target=user       # hooks to user settings
-make build layers=hooks dry=1             # preview hooks only
+# Clean install (replace existing guardrails)
+make build overwrite=1
 
 # Remove layers from an existing settings.json
-make remove layers=hooks target=user      # remove hooks from user settings
-make remove dry=1 layers=hooks            # preview removal
+make remove layers=hooks target=user
 
-# Run the test suite (90 tests)
+# Run the test suite
 make test
 ```
 
@@ -189,19 +184,6 @@ Run the full test suite:
 ```bash
 make test
 ```
-
-The test suite (118 tests) covers:
-
-| Category | Tests | What it verifies |
-|---|---|---|
-| CLI | 14 | `make help`, `make list`, exit codes, layers, dry, targets |
-| Layers | 16 | All/single/multiple layer selection |
-| Merge | 11 | Preserves existing settings, single layer merge, idempotency |
-| Hooks | 9 | Consolidation, matchers (Bash, Write, Edit, Read), valid JSON |
-| Hook Behavior | 41 | Runs hook commands against test inputs (block vs allow) |
-| Sub-agents | 18 | File copy, dry-run, remove, isolation from settings.json |
-| Remove | 9 | `make remove` for hooks, permissions, all; preserves other settings |
-| Clean | 2 | `make clean` removes generated file |
 
 Run a specific test file:
 
