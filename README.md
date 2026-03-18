@@ -1,28 +1,31 @@
 # Claude Code Guardrails
 
-A modular, composable guardrail system for Claude Code. Drop in the layers you need, run the build script, and get a working `.claude/settings.json`.
+A modular, composable guardrail system for Claude Code. Drop in the layers you need, run `make build`, and get a working `.claude/settings.json`.
 
 ## Quick Start
 
 ```bash
 # List available guardrail fragments
-./scripts/build-settings.sh --list
+make list
 
 # Preview what would be generated (no files written)
-./scripts/build-settings.sh --dry-run
+make dry-run
 
 # Build to this repo's .claude/settings.json
-./scripts/build-settings.sh
+make build
 
 # Install to your user-level settings (applies to all projects)
 # Merges with existing settings - preserves model, plugins, etc.
-./scripts/build-settings.sh --target user
+make build TARGET=user
 
 # Install to a specific project
-./scripts/build-settings.sh --target ~/my-project
+make build TARGET=~/my-project
 
 # Only install hooks (no permissions)
-./scripts/build-settings.sh --target user --hooks-only
+make hooks TARGET=user
+
+# Run the test suite
+make test
 ```
 
 ## Project Structure
@@ -44,8 +47,11 @@ layers/
 └── 6-enterprise/             # Org policy templates (planned)
 scripts/
 └── build-settings.sh         # Merges fragments into .claude/settings.json
+tests/
+└── run-tests.sh              # 37 tests covering build, merge, and idempotency
 .claude/
 └── settings.json             # Generated output (do not edit directly)
+Makefile                      # Build interface
 ```
 
 ## The Six Layers
@@ -99,7 +105,7 @@ Shell commands that execute at specific lifecycle points via `PreToolUse`. They 
 }
 ```
 
-Then run `./scripts/build-settings.sh` to regenerate `.claude/settings.json`.
+Then run `make build` to regenerate `.claude/settings.json`.
 
 ### 3. Permissions
 
@@ -141,10 +147,33 @@ Is it critical that this rule CANNOT be bypassed?
   +-- No -> CLAUDE.md
 ```
 
+## Testing
+
+Run the full test suite:
+
+```bash
+make test
+```
+
+The test suite (37 tests) covers:
+
+| Category | What it verifies |
+|---|---|
+| CLI Options | `make help`, `make list`, exit codes, output content |
+| Dry Run | No files written, correct preview output |
+| Build All | Both hooks and permissions present |
+| Hooks/Permissions Only | Correct isolation of each mode |
+| Hook Consolidation | Multiple fragments merge under one matcher |
+| Merge Existing | Preserves model, plugins, and other settings |
+| Idempotency | Running twice doesn't duplicate hooks |
+| Hook Content | Specific guardrails (force push, az Complete, secrets) present |
+| Edge Cases | Invalid target, valid JSON output, user path resolution |
+| Clean | `make clean` removes generated file |
+
 ## Contributing
 
 1. Add a new fragment to the appropriate `layers/` directory
-2. Run `./scripts/build-settings.sh` to verify it merges correctly
+2. Run `make test` to verify it merges correctly
 3. Submit a PR
 
 ## References
