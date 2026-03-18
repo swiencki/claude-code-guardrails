@@ -85,7 +85,7 @@ layers/
 └── 6-enterprise/         # Org policy templates (planned)
 scripts/
 └── build-settings.sh     # Merges fragments into .claude/settings.json
-tests/                    # 213 tests (see tests/README.md)
+tests/                    # see tests/README.md
 Makefile
 ```
 
@@ -277,7 +277,7 @@ Is it critical that this rule CANNOT be bypassed?
 ## Testing
 
 ```bash
-make test                              # run all 213 tests
+make test                              # run all tests
 ./tests/run-tests.sh hook-behavior     # run a specific test file
 ./tests/run-tests.sh merge hooks       # run multiple test files
 ```

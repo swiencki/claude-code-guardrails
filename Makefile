@@ -37,6 +37,7 @@ help: ## Show available commands
 	@echo "  make repo profile=go-dev target=~/p # set up a repo with a specific profile"
 	@echo "  make show fragment=aws/safety.json  # inspect a fragment"
 	@echo "  make remove layers=hooks            # remove hooks from settings"
+	@echo "  make build yes=1                    # skip confirmation prompt"
 
 build: ## Build settings.json from layers or profile
 	@$(SCRIPT) $(FLAGS)

@@ -1,6 +1,6 @@
 # Tests
 
-213 tests across 11 files. Run with `make test` or `./tests/run-tests.sh`.
+Run with `make test` or `./tests/run-tests.sh`.
 
 ## Test files
 
