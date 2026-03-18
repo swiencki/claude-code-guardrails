@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"kubectl\\\\s+(delete|drain|exec)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"kubectl\\\\s+(delete|drain|exec)\") | not' >/dev/null",
             "statusMessage": "Checking for destructive kubectl commands"
           }
         ]

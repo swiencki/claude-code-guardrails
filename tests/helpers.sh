@@ -75,7 +75,7 @@ assert_output_contains() {
     shift 2
     local output
     output=$("$@" 2>&1) || true
-    if echo "$output" | grep -q "$pattern"; then pass "$name"; else fail "$name" "output missing '$pattern'"; fi
+    if grep -q "$pattern" <<< "$output"; then pass "$name"; else fail "$name" "output missing '$pattern'"; fi
 }
 
 # Build into a fresh temp dir, return the settings.json path

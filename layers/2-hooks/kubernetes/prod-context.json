@@ -7,12 +7,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"kubectl\\\\s+(delete|apply|replace|patch|scale|rollout\\\\s+restart|drain|cordon|uncordon).*(--context|--namespace|-n)\\\\s*(prod|production|live)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"kubectl\\\\s+(delete|apply|replace|patch|scale|rollout\\\\s+restart|drain|cordon|uncordon).*(--context|--namespace|-n)\\\\s*(prod|production|live)\") | not' >/dev/null",
             "statusMessage": "Checking for mutating kubectl in prod context"
           },
           {
             "type": "command",
-            "command": "CTX=$(kubectl config current-context 2>/dev/null || echo none); CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command'); if echo \"$CTX\" | grep -qiE '(prod|production|live)' && echo \"$CMD\" | grep -qE 'kubectl\\s+(delete|apply|replace|patch|scale|rollout\\s+restart|drain)'; then exit 1; fi",
+            "command": "CTX=$(kubectl config current-context 2>/dev/null || echo none); CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '(.command // \"\")'); if echo \"$CTX\" | grep -qiE '(prod|production|live)' && echo \"$CMD\" | grep -qE 'kubectl\\s+(delete|apply|replace|patch|scale|rollout\\s+restart|drain)'; then exit 1; fi",
             "statusMessage": "Checking kubectl against current context"
           }
         ]

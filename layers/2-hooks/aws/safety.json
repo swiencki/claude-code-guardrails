@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"aws\\\\s+.*(delete-|terminate-|remove-|destroy-|drop-)|aws\\\\s+s3\\\\s+(rm|rb)\\\\s\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"aws\\\\s+.*(delete-|terminate-|remove-|destroy-|drop-)|aws\\\\s+s3\\\\s+(rm|rb)\\\\s\") | not' >/dev/null",
             "statusMessage": "Checking for destructive AWS CLI commands"
           }
         ]

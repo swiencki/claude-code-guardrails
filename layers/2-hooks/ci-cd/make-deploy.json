@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"make\\\\s+(deploy|release|apply|promote)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"make\\\\s+(deploy|release|apply|promote)\") | not' >/dev/null",
             "statusMessage": "Checking for dangerous make targets"
           }
         ]

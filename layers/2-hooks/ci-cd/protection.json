@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm .*(infrastructure|deploy|config)/\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"rm .*(infrastructure|deploy|config)/\") | not' >/dev/null",
             "statusMessage": "Checking for protected directory deletion"
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"\\\\.github/workflows/\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path // \"\" | test(\"\\\\.github/workflows/\") | not' >/dev/null",
             "statusMessage": "Checking for CI/CD pipeline edits"
           }
         ]
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"\\\\.github/workflows/\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path // \"\" | test(\"\\\\.github/workflows/\") | not' >/dev/null",
             "statusMessage": "Checking for CI/CD pipeline writes"
           }
         ]

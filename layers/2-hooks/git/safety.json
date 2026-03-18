@@ -7,12 +7,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"push.*(--force|-f)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"push.*(--force|-f)\") | not' >/dev/null",
             "statusMessage": "Checking for git force push"
           },
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"git (reset --hard|clean -f|checkout \\\\.|restore \\\\.)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"git (reset --hard|clean -f|checkout \\\\.|restore \\\\.)\") | not' >/dev/null",
             "statusMessage": "Checking for destructive git commands"
           }
         ]

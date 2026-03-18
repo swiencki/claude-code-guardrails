@@ -7,12 +7,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo none); CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command'); if echo \"$BRANCH\" | grep -qE '^(main|master|prod|release/)' && echo \"$CMD\" | grep -qE 'git\\s+push'; then exit 1; fi",
+            "command": "BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo none); CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '(.command // \"\")'); if echo \"$BRANCH\" | grep -qE '^(main|master|prod|release/)' && echo \"$CMD\" | grep -qE 'git\\s+push'; then exit 1; fi",
             "statusMessage": "Checking for direct push to protected branch"
           },
           {
             "type": "command",
-            "command": "BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo none); CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command'); if echo \"$BRANCH\" | grep -qE '^(main|master|prod|release/)' && echo \"$CMD\" | grep -qE 'git\\s+(rebase|reset --hard|clean -f)'; then exit 1; fi",
+            "command": "BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo none); CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '(.command // \"\")'); if echo \"$BRANCH\" | grep -qE '^(main|master|prod|release/)' && echo \"$CMD\" | grep -qE 'git\\s+(rebase|reset --hard|clean -f)'; then exit 1; fi",
             "statusMessage": "Checking for destructive git op on protected branch"
           }
         ]

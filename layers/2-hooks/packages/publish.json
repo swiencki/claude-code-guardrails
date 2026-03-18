@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(npm publish|yarn publish|pip.*upload|twine upload|cargo publish|gem push)\") | not'",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"(npm publish|yarn publish|pip.*upload|twine upload|cargo publish|gem push)\") | not' >/dev/null",
             "statusMessage": "Checking for package publish commands"
           }
         ]

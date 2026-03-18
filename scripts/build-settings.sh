@@ -499,6 +499,7 @@ do_remove() {
         echo "$current" | jq '.' > "$output"
         echo "Removed layers from: $output"
     fi
+    echo ""
 }
 
 # Parse args
@@ -743,4 +744,5 @@ else
             echo "CLAUDE.md already exists, skipped"
         fi
     fi
+    echo ""
 fi
