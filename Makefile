@@ -2,7 +2,7 @@ REPO_ROOT := $(shell cd "$(dir $(lastword $(MAKEFILE_LIST)))" && pwd)
 SCRIPT    := $(REPO_ROOT)/scripts/build-settings.sh
 
 # Defaults
-target  ?= project
+target  ?= user
 layers  ?=
 dry     ?=
 overwrite ?=
@@ -27,17 +27,16 @@ help: ## Show available commands
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Examples:"
-	@echo "  make build                          # merge all layers into project settings"
+	@echo "  make build                          # merge all layers into user settings"
 	@echo "  make build dry=1                    # preview without writing"
 	@echo "  make build profile=go-dev           # build from a profile"
-	@echo "  make build target=user              # apply to user-level settings"
+	@echo "  make build target=project           # apply to this repo only"
 	@echo "  make build layers=hooks             # hooks only"
-	@echo "  make build overwrite=1              # replace instead of merge (prompts for confirm)"
+	@echo "  make build overwrite=1              # replace instead of merge"
+	@echo "  make build yes=1                    # skip confirmation prompt"
 	@echo "  make repo target=~/my-project       # set up a repo with guardrails + CLAUDE.md"
-	@echo "  make repo profile=go-dev target=~/p # set up a repo with a specific profile"
 	@echo "  make show fragment=aws/safety.json  # inspect a fragment"
 	@echo "  make remove layers=hooks            # remove hooks from settings"
-	@echo "  make build yes=1                    # skip confirmation prompt"
 
 build: ## Build settings.json from layers or profile
 	@$(SCRIPT) $(FLAGS)

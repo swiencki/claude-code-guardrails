@@ -24,7 +24,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LAYERS_DIR="$REPO_ROOT/layers"
 
 # Defaults
-TARGET="project"
+TARGET="user"
 LAYERS=""
 PROFILE=""
 DRY_RUN=false
@@ -718,6 +718,9 @@ if $DRY_RUN; then
 else
     echo "$summary"
     if ! $SKIP_CONFIRM; then
+        if [ "$TARGET" = "user" ]; then
+            echo "This will apply guardrails to all projects."
+        fi
         printf "This will %s guardrails into %s. Continue? [y/N] " "$action_verb" "$OUTPUT"
         read -r ans
         if [ "$ans" != "y" ] && [ "$ans" != "Y" ]; then

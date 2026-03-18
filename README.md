@@ -28,8 +28,8 @@ Run `make help` for all commands and options.
 # Preview a profile
 make build profile=go-dev dry=1
 
-# Install to your user settings (applies to all projects)
-make build profile=go-dev target=user
+# Install (defaults to user settings, applies to all projects)
+make build profile=go-dev
 
 # Or set up a specific repo with guardrails + CLAUDE.md
 make repo profile=infra-dev target=~/my-project
