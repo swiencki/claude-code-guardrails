@@ -14,6 +14,7 @@
 #
 # The script merges guardrail fragments into the target settings.json while
 # preserving any existing settings (model, plugins, etc.).
+# Sub-agents are copied as individual files to .claude/agents/.
 
 set -euo pipefail
 
@@ -24,13 +25,18 @@ LAYERS_DIR="$REPO_ROOT/layers"
 TARGET="project"
 LAYERS=""
 DRY_RUN=false
+OVERWRITE=false
 ACTION="build"
 
 # Available layers (mapped to directory names)
 declare -A LAYER_DIRS=(
     [hooks]="2-hooks"
     [permissions]="3-permissions"
+    [sub-agents]="4-sub-agents"
 )
+
+# Layers that merge into settings.json
+SETTINGS_LAYERS="hooks permissions"
 
 # Hook event types supported by Claude Code settings.json
 HOOK_EVENTS="PreToolUse PostToolUse"
@@ -55,6 +61,7 @@ Options:
   --layers <list>         Comma-separated layers to install/remove (default: all)
                             hooks         - PreToolUse/PostToolUse hook guardrails
                             permissions   - tool allow/deny rules
+                            sub-agents    - scoped agent definitions (.claude/agents/)
                           Combine: --layers hooks,permissions
   --remove                Remove selected layers from target settings.json
   --dry-run               Preview the merged output without writing
@@ -68,6 +75,9 @@ Examples:
   # Install only hooks
   ./scripts/build-settings.sh --layers hooks
 
+  # Install sub-agents to a project
+  ./scripts/build-settings.sh --layers sub-agents --target ~/my-project
+
   # Remove hooks from user settings
   ./scripts/build-settings.sh --remove --layers hooks --target user
 
@@ -79,21 +89,20 @@ Examples:
 USAGE
 }
 
-resolve_output() {
+resolve_target_dir() {
     case "$TARGET" in
         user)
-            echo "$HOME/.claude/settings.json"
+            echo "$HOME/.claude"
             ;;
         project)
-            echo "$REPO_ROOT/.claude/settings.json"
+            echo "$REPO_ROOT/.claude"
             ;;
         *)
-            local dir="$TARGET"
-            if [ ! -d "$dir" ]; then
-                echo "Error: target directory does not exist: $dir" >&2
+            if [ ! -d "$TARGET" ]; then
+                echo "Error: target directory does not exist: $TARGET" >&2
                 exit 1
             fi
-            echo "$dir/.claude/settings.json"
+            echo "$TARGET/.claude"
             ;;
     esac
 }
@@ -119,13 +128,23 @@ layer_enabled() {
     echo "$LAYERS" | tr ',' '\n' | grep -qx "$layer"
 }
 
+# Check if any settings.json layers are enabled
+settings_layers_enabled() {
+    for layer in $SETTINGS_LAYERS; do
+        if layer_enabled "$layer"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 list_fragments() {
     local dir name desc
 
     echo "Available layers and fragments:"
     echo ""
 
-    for layer in hooks permissions; do
+    for layer in hooks permissions sub-agents; do
         dir="$LAYERS_DIR/${LAYER_DIRS[$layer]}"
         echo "  $layer (layers/${LAYER_DIRS[$layer]}/):"
         for f in "$dir"/*.json; do
@@ -191,8 +210,91 @@ merge_permissions() {
     echo "$result"
 }
 
+install_sub_agents() {
+    local src_dir="$LAYERS_DIR/${LAYER_DIRS[sub-agents]}"
+    local dest_dir="$1/agents"
+    local count=0
+
+    if $DRY_RUN; then
+        echo ""
+        echo "Sub-agents (would copy to $dest_dir/):"
+        for f in "$src_dir"/*.json; do
+            [ -f "$f" ] || continue
+            local name desc
+            name=$(basename "$f")
+            desc=$(jq -r '.description // "No description"' "$f")
+            echo "  $name: $desc"
+            count=$((count + 1))
+        done
+        if [ "$count" -eq 0 ]; then
+            echo "  (none)"
+        fi
+        return
+    fi
+
+    mkdir -p "$dest_dir"
+    for f in "$src_dir"/*.json; do
+        [ -f "$f" ] || continue
+        cp "$f" "$dest_dir/"
+        count=$((count + 1))
+    done
+
+    echo "Sub-agents:"
+    for f in "$dest_dir"/*.json; do
+        [ -f "$f" ] || continue
+        local name desc
+        name=$(basename "$f")
+        desc=$(jq -r '.description // "No description"' "$f")
+        echo "  $name: $desc"
+    done
+    echo "  Copied $count agent(s) to $dest_dir/"
+    echo ""
+}
+
+remove_sub_agents() {
+    local dest_dir="$1/agents"
+    local src_dir="$LAYERS_DIR/${LAYER_DIRS[sub-agents]}"
+
+    if $DRY_RUN; then
+        echo "Would remove sub-agents from $dest_dir/"
+        return
+    fi
+
+    if [ ! -d "$dest_dir" ]; then
+        echo "No agents directory at $dest_dir"
+        return
+    fi
+
+    local count=0
+    for f in "$src_dir"/*.json; do
+        [ -f "$f" ] || continue
+        local name
+        name=$(basename "$f")
+        if [ -f "$dest_dir/$name" ]; then
+            rm "$dest_dir/$name"
+            count=$((count + 1))
+        fi
+    done
+
+    # Remove agents dir if empty
+    if [ -d "$dest_dir" ] && [ -z "$(ls -A "$dest_dir")" ]; then
+        rmdir "$dest_dir"
+    fi
+
+    echo "Removed $count sub-agent(s) from $dest_dir/"
+}
+
 do_remove() {
     local output="$1"
+    local target_dir="$2"
+
+    if layer_enabled sub-agents; then
+        remove_sub_agents "$target_dir"
+    fi
+
+    if ! settings_layers_enabled; then
+        return
+    fi
 
     if [ ! -f "$output" ]; then
         echo "Nothing to remove: $output does not exist" >&2
@@ -210,7 +312,15 @@ do_remove() {
         current=$(echo "$current" | jq 'del(.permissions)')
     fi
 
-    echo "$current" | jq '.'
+    current=$(echo "$current" | jq '.')
+
+    if $DRY_RUN; then
+        echo "# Would write to: $output"
+        echo "$current"
+    else
+        echo "$current" > "$output"
+        echo "Removed layers from: $output"
+    fi
 }
 
 # Parse args
@@ -227,6 +337,10 @@ while [ $# -gt 0 ]; do
             ;;
         --remove)
             ACTION="remove"
+            shift
+            ;;
+        --overwrite)
+            OVERWRITE=true
             shift
             ;;
         --dry-run)
@@ -249,22 +363,24 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-OUTPUT=$(resolve_output)
+TARGET_DIR=$(resolve_target_dir)
+OUTPUT="$TARGET_DIR/settings.json"
 
 if [ "$ACTION" = "remove" ]; then
-    final=$(do_remove "$OUTPUT")
-
-    if $DRY_RUN; then
-        echo "# Would write to: $OUTPUT"
-        echo "$final"
-    else
-        echo "$final" > "$OUTPUT"
-        echo "Removed layers from: $OUTPUT"
-    fi
+    do_remove "$OUTPUT" "$TARGET_DIR"
     exit 0
 fi
 
-# Build selected layers
+# Install sub-agents (file copy, not settings.json merge)
+if layer_enabled sub-agents; then
+    install_sub_agents "$TARGET_DIR"
+fi
+
+# Build settings.json layers
+if ! settings_layers_enabled; then
+    exit 0
+fi
+
 generated='{}'
 
 if layer_enabled hooks; then
@@ -277,35 +393,48 @@ if layer_enabled permissions; then
     generated=$(echo "$generated" | jq --argjson p "$perms_result" '. + $p')
 fi
 
-# Merge into existing settings if the file already exists
+# Merge or overwrite existing settings
 if [ -f "$OUTPUT" ]; then
     existing=$(cat "$OUTPUT")
-    merged=$(echo "$existing" | jq --argjson gen "$generated" '
-        # Merge hooks: combine arrays per event type, consolidate by matcher
-        (if $gen.hooks then
-            reduce ($gen.hooks | to_entries[]) as $entry (
-                .;
-                ($entry.key) as $event |
-                ($entry.value // []) as $new_hooks |
-                (.hooks[$event] // []) as $old_hooks |
-                .hooks[$event] = (
-                    $old_hooks + $new_hooks
-                    | group_by(.matcher)
-                    | map({
-                        matcher: .[0].matcher,
-                        hooks: [.[].hooks[]] | unique_by(.command)
-                    })
-                )
-            )
-        else . end) |
 
-        # Merge permissions: union allow/deny arrays
-        (if $gen.permissions then
-            .permissions.allow = ((.permissions.allow // []) + ($gen.permissions.allow // []) | unique) |
-            .permissions.deny = ((.permissions.deny // []) + ($gen.permissions.deny // []) | unique)
-        else . end)
-    ')
-    final="$merged"
+    if $OVERWRITE; then
+        # Strip only the selected layers from existing, then overlay generated
+        base="$existing"
+        if layer_enabled hooks; then
+            base=$(echo "$base" | jq 'del(.hooks)')
+        fi
+        if layer_enabled permissions; then
+            base=$(echo "$base" | jq 'del(.permissions)')
+        fi
+        final=$(echo "$base" | jq --argjson gen "$generated" '. + $gen')
+    else
+        # Merge: append hooks/permissions to existing
+        final=$(echo "$existing" | jq --argjson gen "$generated" '
+            # Merge hooks: combine arrays per event type, consolidate by matcher
+            (if $gen.hooks then
+                reduce ($gen.hooks | to_entries[]) as $entry (
+                    .;
+                    ($entry.key) as $event |
+                    ($entry.value // []) as $new_hooks |
+                    (.hooks[$event] // []) as $old_hooks |
+                    .hooks[$event] = (
+                        $old_hooks + $new_hooks
+                        | group_by(.matcher)
+                        | map({
+                            matcher: .[0].matcher,
+                            hooks: [.[].hooks[]] | unique_by(.command)
+                        })
+                    )
+                )
+            else . end) |
+
+            # Merge permissions: union allow/deny arrays
+            (if $gen.permissions then
+                .permissions.allow = ((.permissions.allow // []) + ($gen.permissions.allow // []) | unique) |
+                .permissions.deny = ((.permissions.deny // []) + ($gen.permissions.deny // []) | unique)
+            else . end)
+        ')
+    fi
 else
     final="$generated"
 fi

@@ -1,6 +1,13 @@
 # Sub-agents
 
-Sub-agent definitions are standalone JSON files, not merged into `settings.json`.
-Copy individual files to your project's `.claude/` directory to use them.
+Agent definitions are copied to `.claude/agents/` in the target project.
 
-Sub-agents cannot be installed via `make build` since they are separate config files, not settings.json fragments.
+Unlike hooks and permissions (which merge into `settings.json`), each sub-agent
+is a standalone JSON file. The build script copies them as-is.
+
+Add new agents by creating a JSON file in this directory with:
+- `name` - agent identifier
+- `description` - what the agent does (also used for auto-delegation)
+- `prompt` - system prompt for the agent
+- `tools` - allowed tools list
+- `permissions` - allow/deny rules scoped to this agent

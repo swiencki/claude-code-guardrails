@@ -3,6 +3,7 @@ SCRIPT := $(REPO_ROOT)/scripts/build-settings.sh
 target ?= project
 layers ?=
 dry ?=
+overwrite ?=
 
 # Build flags from variables
 ifneq ($(layers),)
@@ -17,10 +18,16 @@ else
   DRY_RUN_FLAG :=
 endif
 
+ifneq ($(overwrite),)
+  OVERWRITE_FLAG := --overwrite
+else
+  OVERWRITE_FLAG :=
+endif
+
 .PHONY: help init build remove list test lint lint-bash lint-json clean
 
 help: ## Show this help
-	@echo "Usage: make <target> [target=user|project|/path] [layers=hooks,permissions] [dry=1]"
+	@echo "Usage: make <target> [target=user|project|/path] [layers=...] [dry=1] [overwrite=1]"
 	@echo ""
 	@echo "Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -34,16 +41,20 @@ help: ## Show this help
 	@echo "layers options (comma-separated):"
 	@echo "  hooks             PreToolUse/PostToolUse hook guardrails"
 	@echo "  permissions       tool allow/deny rules"
+	@echo "  sub-agents        scoped agent definitions (.claude/agents/)"
 	@echo "  (default: all layers)"
 	@echo ""
+	@echo "Flags:"
+	@echo "  dry=1             preview without writing"
+	@echo "  overwrite=1       replace existing guardrails instead of merging"
+	@echo ""
 	@echo "Examples:"
-	@echo "  make build                                  # all layers to repo"
-	@echo "  make build target=user                      # all layers to user settings"
-	@echo "  make build layers=hooks                     # hooks only"
-	@echo "  make build layers=hooks,permissions          # hooks + permissions"
-	@echo "  make build dry=1                            # preview build without writing"
+	@echo "  make build                                  # merge all layers"
+	@echo "  make build target=user                      # merge all to user settings"
+	@echo "  make build layers=hooks                     # merge hooks only"
+	@echo "  make build overwrite=1                      # clean install (replace existing)"
+	@echo "  make build dry=1                            # preview without writing"
 	@echo "  make remove layers=hooks target=user         # remove hooks from user settings"
-	@echo "  make remove dry=1 layers=hooks               # preview removal"
 	@echo "  make init target=~/my-project                # guardrails + CLAUDE.md"
 
 init: ## Initialize a project with guardrails and CLAUDE.md
@@ -51,15 +62,15 @@ init: ## Initialize a project with guardrails and CLAUDE.md
 		echo "Error: init requires a target (e.g. make init target=~/my-project)" >&2; \
 		exit 1; \
 	fi
-	@$(SCRIPT) --target $(target) $(LAYERS_FLAG) $(DRY_RUN_FLAG)
+	@$(SCRIPT) --target $(target) $(LAYERS_FLAG) $(DRY_RUN_FLAG) $(OVERWRITE_FLAG)
 	@if [ -z "$(dry)" ]; then \
 		cp -n $(REPO_ROOT)/layers/1-claude-md/CLAUDE.md $(target)/CLAUDE.md 2>/dev/null \
 			&& echo "Copied CLAUDE.md to $(target)/CLAUDE.md" \
 			|| echo "CLAUDE.md already exists in $(target), skipped"; \
 	fi
 
-build: ## Build settings.json from selected layers
-	@$(SCRIPT) --target $(target) $(LAYERS_FLAG) $(DRY_RUN_FLAG)
+build: ## Build settings.json from selected layers (merges by default)
+	@$(SCRIPT) --target $(target) $(LAYERS_FLAG) $(DRY_RUN_FLAG) $(OVERWRITE_FLAG)
 
 remove: ## Remove selected layers from target settings.json
 	@$(SCRIPT) --remove --target $(target) $(LAYERS_FLAG) $(DRY_RUN_FLAG)

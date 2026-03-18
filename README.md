@@ -45,6 +45,7 @@ make build target=~/my-project
 # Install specific layers only
 make build layers=hooks                   # hooks only
 make build layers=permissions             # permissions only
+make build layers=sub-agents              # sub-agents only
 make build layers=hooks,permissions       # hooks + permissions
 
 # Combine layer selection with target
@@ -78,7 +79,7 @@ layers/
 ├── 3-permissions/            # Tool-level allow/deny presets
 │   ├── read-only.json        # Read-only access
 │   └── standard-dev.json     # Standard dev (read + test + lint)
-├── 4-sub-agents/             # Scoped agent definitions
+├── 4-sub-agents/             # Scoped agent definitions (copied to .claude/agents/)
 │   └── reviewer.json         # Read-only code reviewer
 ├── 5-agent-teams/            # Agent team configs (planned)
 └── 6-enterprise/             # Org policy templates (planned)
@@ -156,9 +157,11 @@ Tool-level allow/deny rules. Simple and declarative - no scripting needed.
 
 ### 4. Sub-agents
 
-Custom agents with scoped tool restrictions, custom permissions, and their own hooks.
+Custom agents with scoped tool restrictions, custom permissions, and their own hooks. Installed to `.claude/agents/` as individual JSON files (not merged into `settings.json`).
 
 **When to use:** Delegating tasks where you want to limit what tools the agent can access.
+
+**Adding an agent:** Create a JSON file in `layers/4-sub-agents/` with `name`, `description`, `prompt`, `tools`, and `permissions` fields. Run `make build` to copy it to the target.
 
 **Constraint:** Sub-agents cannot spawn other sub-agents (no infinite recursion).
 
@@ -192,15 +195,16 @@ Run the full test suite:
 make test
 ```
 
-The test suite (90 tests) covers:
+The test suite (118 tests) covers:
 
 | Category | Tests | What it verifies |
 |---|---|---|
-| CLI | 14 | `make help`, `make list`, exit codes, LAYERS, DRY_RUN, targets |
+| CLI | 14 | `make help`, `make list`, exit codes, layers, dry, targets |
 | Layers | 16 | All/single/multiple layer selection |
 | Merge | 11 | Preserves existing settings, single layer merge, idempotency |
 | Hooks | 9 | Consolidation, matchers (Bash, Write, Edit, Read), valid JSON |
-| Hook Behavior | 31 | Actually runs hook commands against test inputs (block vs allow) |
+| Hook Behavior | 41 | Runs hook commands against test inputs (block vs allow) |
+| Sub-agents | 18 | File copy, dry-run, remove, isolation from settings.json |
 | Remove | 9 | `make remove` for hooks, permissions, all; preserves other settings |
 | Clean | 2 | `make clean` removes generated file |
 
