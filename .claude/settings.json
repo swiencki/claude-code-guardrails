@@ -4,18 +4,13 @@
       {
         "hooks": [
           {
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(cat|echo|curl).*(env|credentials|secret|token)\") | not'",
+            "statusMessage": "Checking for secret leaks",
+            "type": "command"
+          },
+          {
             "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"--mode\\\\s+Complete\") | not'",
             "statusMessage": "Checking for az deployment --mode Complete",
-            "type": "command"
-          },
-          {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm .*(infrastructure|deploy|config)/\") | not'",
-            "statusMessage": "Checking for protected directory deletion",
-            "type": "command"
-          },
-          {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"push.*(--force|-f)\") | not'",
-            "statusMessage": "Checking for git force push",
             "type": "command"
           },
           {
@@ -24,8 +19,13 @@
             "type": "command"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(cat|echo|curl).*(env|credentials|secret|token)\") | not'",
-            "statusMessage": "Checking for secret leaks",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"push.*(--force|-f)\") | not'",
+            "statusMessage": "Checking for git force push",
+            "type": "command"
+          },
+          {
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm .*(infrastructure|deploy|config)/\") | not'",
+            "statusMessage": "Checking for protected directory deletion",
             "type": "command"
           }
         ],

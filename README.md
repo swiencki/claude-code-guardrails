@@ -8,14 +8,21 @@ A modular, composable guardrail system for Claude Code. Drop in the layers you n
 # List available guardrail fragments
 ./scripts/build-settings.sh --list
 
-# Build .claude/settings.json from all layers
+# Preview what would be generated (no files written)
+./scripts/build-settings.sh --dry-run
+
+# Build to this repo's .claude/settings.json
 ./scripts/build-settings.sh
 
-# Build hooks only (no permissions)
-./scripts/build-settings.sh --hooks-only
+# Install to your user-level settings (applies to all projects)
+# Merges with existing settings - preserves model, plugins, etc.
+./scripts/build-settings.sh --target user
 
-# Build permissions only (no hooks)
-./scripts/build-settings.sh --permissions-only
+# Install to a specific project
+./scripts/build-settings.sh --target ~/my-project
+
+# Only install hooks (no permissions)
+./scripts/build-settings.sh --target user --hooks-only
 ```
 
 ## Project Structure
