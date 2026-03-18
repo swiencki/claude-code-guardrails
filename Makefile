@@ -2,18 +2,25 @@ REPO_ROOT := $(shell cd "$(dir $(lastword $(MAKEFILE_LIST)))" && pwd)
 SCRIPT := $(REPO_ROOT)/scripts/build-settings.sh
 TARGET ?= project
 LAYERS ?=
+DRY_RUN ?=
 
-# Build --layers flag from LAYERS variable
+# Build flags from variables
 ifneq ($(LAYERS),)
   LAYERS_FLAG := --layers $(LAYERS)
 else
   LAYERS_FLAG :=
 endif
 
+ifneq ($(DRY_RUN),)
+  DRY_RUN_FLAG := --dry-run
+else
+  DRY_RUN_FLAG :=
+endif
+
 .PHONY: help build remove list dry-run test lint lint-bash lint-json clean
 
 help: ## Show this help
-	@echo "Usage: make <target> [TARGET=user|project|/path] [LAYERS=hooks,permissions,...]"
+	@echo "Usage: make <target> [TARGET=user|project|/path] [LAYERS=hooks,permissions] [DRY_RUN=1]"
 	@echo ""
 	@echo "Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -34,21 +41,18 @@ help: ## Show this help
 	@echo "  make build TARGET=user                      # all layers to user settings"
 	@echo "  make build LAYERS=hooks                     # hooks only"
 	@echo "  make build LAYERS=hooks,permissions          # hooks + permissions"
-	@echo "  make build LAYERS=hooks TARGET=user          # hooks to user settings"
-	@echo "  make dry-run LAYERS=hooks                   # preview hooks only"
+	@echo "  make build DRY_RUN=1                        # preview build without writing"
 	@echo "  make remove LAYERS=hooks TARGET=user         # remove hooks from user settings"
+	@echo "  make remove DRY_RUN=1 LAYERS=hooks           # preview removal"
 
 build: ## Build settings.json from selected layers
-	@$(SCRIPT) --target $(TARGET) $(LAYERS_FLAG)
+	@$(SCRIPT) --target $(TARGET) $(LAYERS_FLAG) $(DRY_RUN_FLAG)
 
 remove: ## Remove selected layers from target settings.json
-	@$(SCRIPT) --remove --target $(TARGET) $(LAYERS_FLAG)
+	@$(SCRIPT) --remove --target $(TARGET) $(LAYERS_FLAG) $(DRY_RUN_FLAG)
 
 list: ## List available fragments per layer
 	@$(SCRIPT) --list
-
-dry-run: ## Preview merged output without writing
-	@$(SCRIPT) --target $(TARGET) $(LAYERS_FLAG) --dry-run
 
 lint: lint-bash lint-json ## Run all linters
 
