@@ -222,7 +222,8 @@ test_hook "security/credential-files.json" "PreToolUse" 0 0 \
     "credential-files: allows cat README.md"
 
 # --- token-echo.json ---
-
+# shellcheck disable=SC2016
+{
 test_hook "security/token-echo.json" "PreToolUse" 0 0 \
     '{"command":"echo $SECRET_VALUE"}' block \
     "token-echo: blocks echo \$SECRET"
@@ -238,6 +239,7 @@ test_hook "security/token-echo.json" "PreToolUse" 0 0 \
 test_hook "security/token-echo.json" "PreToolUse" 0 0 \
     '{"command":"echo hello world"}' allow \
     "token-echo: allows echo hello world"
+}
 
 # --- env-leak.json ---
 

@@ -5,6 +5,9 @@ source "$(dirname "$0")/helpers.sh"
 
 echo "=== Profiles ==="
 
+# shellcheck disable=SC2086 # $MAKE intentionally word-splits
+{
+
 # list-profiles works
 assert_output_contains "go-dev" "list-profiles shows go-dev" \
     $MAKE profiles
@@ -74,5 +77,7 @@ assert_json_has_key "$PY_OUTPUT" '.hooks' "python-dev: has hooks"
 PY_AGENTS="$TEST_TMPDIR/profile-python-dev/.claude/agents"
 assert_file_exists "$PY_AGENTS/reviewer.json" "python-dev: reviewer agent copied"
 assert_file_exists "$PY_AGENTS/docs-reviewer.json" "python-dev: docs-reviewer agent copied"
+
+}
 
 print_results
