@@ -5,8 +5,8 @@ A modular, composable guardrail system for Claude Code. Drop in the layers you n
 ## Prerequisites
 
 - **[Claude Code](https://claude.com/claude-code)** - the AI coding agent these guardrails are for
-- **jq** - JSON processor (required for build and lint)
-- **shellcheck** - bash linter (required for `make lint`)
+- **jq** - JSON processor (required for build)
+- **shellcheck** - bash linter (required for CI)
 - **make** - build system
 
 ```bash
@@ -42,13 +42,14 @@ make build target=user
 make build layers=hooks                   # hooks only
 make build layers=hooks,permissions       # hooks + permissions
 
-# Clean install (replace existing guardrails, prompts for confirmation)
+# Clean install (replace existing guardrails)
 make build overwrite=1
 
 # Browse what's available
 make list                                 # all fragments
 make profiles                             # all profiles
-make show fragment=aws/safety.json        # inspect a fragment
+make show fragment=aws/safety.json        # inspect a single fragment
+make show fragment=gh                     # inspect all fragments in a directory
 
 # Remove layers from an existing settings.json
 make remove layers=hooks target=user
@@ -84,7 +85,7 @@ layers/
 └── 6-enterprise/         # Org policy templates (planned)
 scripts/
 └── build-settings.sh     # Merges fragments into .claude/settings.json
-tests/
+tests/                    # 213 tests (see tests/README.md)
 Makefile
 ```
 
@@ -195,7 +196,7 @@ make build profile=go-dev
 | `infra-dev` | git, security, terraform, k8s, azure, aws, ci-cd, gh | standard-dev | explorer, release-reviewer | Infrastructure/platform work |
 | `readonly-review` | secret scanning only | read-only | reviewer, docs-reviewer, explorer | Code review, audit, spelunking |
 
-Profiles use the same merge behavior as layers - they combine with existing settings by default, or replace them with `overwrite=1`.
+Profiles merge with existing settings by default, or replace them with `overwrite=1`. Switching profiles automatically removes sub-agents that aren't in the new profile.
 
 ## Hooks vs Permissions - When to Use Which
 
@@ -275,18 +276,13 @@ Is it critical that this rule CANNOT be bypassed?
 
 ## Testing
 
-Run the full test suite:
-
 ```bash
-make test
+make test                              # run all 213 tests
+./tests/run-tests.sh hook-behavior     # run a specific test file
+./tests/run-tests.sh merge hooks       # run multiple test files
 ```
 
-Run a specific test file:
-
-```bash
-./tests/run-tests.sh hook-behavior
-./tests/run-tests.sh merge hooks
-```
+See [tests/README.md](tests/README.md) for what each test file covers.
 
 ## Contributing
 
