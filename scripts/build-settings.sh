@@ -29,6 +29,8 @@ LAYERS=""
 PROFILE=""
 DRY_RUN=false
 OVERWRITE=false
+SKIP_CONFIRM=false
+INIT_REPO=false
 ACTION="build"
 PROFILES_DIR="$REPO_ROOT/profiles"
 
@@ -192,26 +194,21 @@ show_fragment() {
         exit 1
     fi
 
-    if [ ${#matches[@]} -gt 1 ]; then
-        echo "Multiple fragments match '$query':"
-        echo ""
-        for f in "${matches[@]}"; do
-            echo "  ${f#"$LAYERS_DIR"/}"
-        done
-        echo ""
-        echo "Be more specific (e.g. --show azure/safety.json)"
-        exit 1
-    fi
+    for file in "${matches[@]}"; do
+        local rel="${file#"$LAYERS_DIR"/}"
+        local desc
+        desc=$(jq -r '.description // "No description"' "$file")
 
-    local file="${matches[0]}"
-    local rel="${file#"$LAYERS_DIR"/}"
-    local desc
-    desc=$(jq -r '.description // "No description"' "$file")
-
-    echo "Fragment: $rel"
-    echo "Description: $desc"
-    echo ""
-    jq '.' "$file"
+        echo "Fragment: $rel"
+        echo "Description: $desc"
+        echo ""
+        jq '.' "$file"
+        if [ ${#matches[@]} -gt 1 ]; then
+            echo ""
+            echo "---"
+            echo ""
+        fi
+    done
 }
 
 list_profiles() {
@@ -376,6 +373,27 @@ install_sub_agents() {
     fi
 
     mkdir -p "$dest_dir"
+
+    # When using a profile, remove agents not in the profile's list
+    if [ -n "$PROFILE" ] && [ -d "$dest_dir" ]; then
+        local wanted=()
+        for f in "${files[@]}"; do
+            wanted+=("$(basename "$f")")
+        done
+        for existing in "$dest_dir"/*.json; do
+            [ -f "$existing" ] || continue
+            local ename
+            ename=$(basename "$existing")
+            local found=false
+            for w in "${wanted[@]}"; do
+                if [ "$w" = "$ename" ]; then found=true; break; fi
+            done
+            if ! $found; then
+                rm "$existing"
+            fi
+        done
+    fi
+
     for f in "${files[@]}"; do
         cp "$f" "$dest_dir/"
         count=$((count + 1))
@@ -389,7 +407,7 @@ install_sub_agents() {
         desc=$(jq -r '.description // "No description"' "$f")
         echo "  $name: $desc"
     done
-    echo "  Copied $count agent(s) to $dest_dir/"
+    echo "  Installed $count agent(s) to $dest_dir/"
     echo ""
 }
 
@@ -430,37 +448,55 @@ do_remove() {
     local output="$1"
     local target_dir="$2"
 
+    if ! settings_layers_enabled && ! layer_enabled sub-agents; then
+        return
+    fi
+
+    # Build remove summary
+    local removing=""
+    if layer_enabled hooks; then removing+="hooks, "; fi
+    if layer_enabled permissions; then removing+="permissions, "; fi
+    if layer_enabled sub-agents; then removing+="sub-agents, "; fi
+    removing="${removing%, }"
+
+    if $DRY_RUN; then
+        if settings_layers_enabled && [ -f "$output" ]; then
+            local current
+            current=$(cat "$output")
+            if layer_enabled hooks; then current=$(echo "$current" | jq 'del(.hooks)'); fi
+            if layer_enabled permissions; then current=$(echo "$current" | jq 'del(.permissions)'); fi
+            echo "# Would write to: $output"
+            echo "$current" | jq '.'
+        fi
+        if layer_enabled sub-agents; then
+            echo "Would remove sub-agents from $target_dir/agents/"
+        fi
+        return
+    fi
+
+    if ! $SKIP_CONFIRM; then
+        printf "This will remove %s from %s. Continue? [y/N] " "$removing" "$output"
+        read -r ans
+        if [ "$ans" != "y" ] && [ "$ans" != "Y" ]; then
+            echo "Aborted."
+            exit 1
+        fi
+    fi
+
     if layer_enabled sub-agents; then
         remove_sub_agents "$target_dir"
     fi
 
-    if ! settings_layers_enabled; then
-        return
-    fi
-
-    if [ ! -f "$output" ]; then
-        echo "Nothing to remove: $output does not exist" >&2
-        exit 1
-    fi
-
-    local current
-    current=$(cat "$output")
-
-    if layer_enabled hooks; then
-        current=$(echo "$current" | jq 'del(.hooks)')
-    fi
-
-    if layer_enabled permissions; then
-        current=$(echo "$current" | jq 'del(.permissions)')
-    fi
-
-    current=$(echo "$current" | jq '.')
-
-    if $DRY_RUN; then
-        echo "# Would write to: $output"
-        echo "$current"
-    else
-        echo "$current" > "$output"
+    if settings_layers_enabled; then
+        if [ ! -f "$output" ]; then
+            echo "Nothing to remove: $output does not exist" >&2
+            exit 1
+        fi
+        local current
+        current=$(cat "$output")
+        if layer_enabled hooks; then current=$(echo "$current" | jq 'del(.hooks)'); fi
+        if layer_enabled permissions; then current=$(echo "$current" | jq 'del(.permissions)'); fi
+        echo "$current" | jq '.' > "$output"
         echo "Removed layers from: $output"
     fi
 }
@@ -487,6 +523,14 @@ while [ $# -gt 0 ]; do
             ;;
         --dry-run)
             DRY_RUN=true
+            shift
+            ;;
+        --yes)
+            SKIP_CONFIRM=true
+            shift
+            ;;
+        --init)
+            INIT_REPO=true
             shift
             ;;
         --list)
@@ -539,13 +583,8 @@ if [ "$ACTION" = "remove" ]; then
     exit 0
 fi
 
-# Install sub-agents (file copy, not settings.json merge)
-if layer_enabled sub-agents; then
-    install_sub_agents "$TARGET_DIR"
-fi
-
 # Build settings.json layers
-if ! settings_layers_enabled; then
+if ! settings_layers_enabled && ! layer_enabled sub-agents; then
     exit 0
 fi
 
@@ -610,33 +649,95 @@ fi
 # Format
 final=$(echo "$final" | jq '.')
 
-if $DRY_RUN; then
-    echo "# Would write to: $OUTPUT"
-    echo "$final"
-    echo ""
-    echo "# Summary:"
-else
-    mkdir -p "$(dirname "$OUTPUT")"
-    echo "$final" > "$OUTPUT"
-    echo "Written to: $OUTPUT"
-    echo ""
-fi
-
-# Show what was installed
+# Build summary
+summary=""
 if layer_enabled hooks; then
-    echo "Hooks:"
     for event in $HOOK_EVENTS; do
-        echo "$final" | jq -r --arg ev "$event" '.hooks[$ev][]? | "  [\($ev)/\(.matcher)] \(.hooks | length) hook(s)"'
+        hook_line=$(echo "$final" | jq -r --arg ev "$event" '.hooks[$ev][]? | "  [\($ev)/\(.matcher)] \(.hooks | length) hook(s)"')
+        if [ -n "$hook_line" ]; then
+            summary+="Hooks:
+$hook_line
+"
+        fi
     done
-    echo ""
 fi
 
 if layer_enabled permissions; then
-    echo "Permissions:"
-    echo "$final" | jq -r '.permissions // {} | "  allow: \(.allow // [] | length) rules, deny: \(.deny // [] | length) rules"'
-    echo ""
+    perm_line=$(echo "$final" | jq -r '.permissions // {} | "  allow: \(.allow // [] | length) rules, deny: \(.deny // [] | length) rules"')
+    summary+="Permissions:
+$perm_line
+"
 fi
 
-if ! $DRY_RUN && [ -f "$OUTPUT" ]; then
-    echo "Existing settings preserved (model, plugins, etc.)"
+if layer_enabled sub-agents; then
+    src_dir="$LAYERS_DIR/${LAYER_DIRS[sub-agents]}"
+    agent_names=""
+    if [ -n "$PROFILE" ]; then
+        pf=$(resolve_profile "$PROFILE")
+        agent_names=$(jq -r '.fragments["sub-agents"] // [] | .[] | rtrimstr(".json")' "$pf" | paste -sd ", " -)
+    else
+        agent_names=$(find "$src_dir" -name '*.json' -type f -exec basename {} .json \; | sort | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+    fi
+    if [ -n "$agent_names" ]; then
+        summary+="Agents:   $agent_names
+"
+    fi
+fi
+
+if [ -n "$PROFILE" ]; then
+    summary="Profile:  $PROFILE
+$summary"
+fi
+
+if $INIT_REPO; then
+    case "$TARGET" in
+        user) claude_md_target="$HOME/CLAUDE.md" ;;
+        project) claude_md_target="$REPO_ROOT/CLAUDE.md" ;;
+        *) claude_md_target="$TARGET/CLAUDE.md" ;;
+    esac
+    summary+="CLAUDE.md: $claude_md_target
+"
+fi
+
+action_verb="merge"
+if $OVERWRITE; then action_verb="overwrite"; fi
+if $INIT_REPO; then action_verb="initialize"; fi
+
+if $DRY_RUN; then
+    echo "$summary"
+    if layer_enabled sub-agents; then
+        install_sub_agents "$TARGET_DIR"
+    fi
+    if settings_layers_enabled; then
+        echo "# Would write to: $OUTPUT"
+        echo "$final"
+    fi
+    if $INIT_REPO; then
+        echo "# Would copy CLAUDE.md to $claude_md_target"
+    fi
+else
+    echo "$summary"
+    if ! $SKIP_CONFIRM; then
+        printf "This will %s guardrails into %s. Continue? [y/N] " "$action_verb" "$OUTPUT"
+        read -r ans
+        if [ "$ans" != "y" ] && [ "$ans" != "Y" ]; then
+            echo "Aborted."
+            exit 1
+        fi
+    fi
+    if layer_enabled sub-agents; then
+        install_sub_agents "$TARGET_DIR"
+    fi
+    if settings_layers_enabled; then
+        mkdir -p "$(dirname "$OUTPUT")"
+        echo "$final" > "$OUTPUT"
+        echo "Written to: $OUTPUT"
+    fi
+    if $INIT_REPO; then
+        if cp -n "$REPO_ROOT/layers/1-claude-md/CLAUDE.md" "$claude_md_target" 2>/dev/null; then
+            echo "Copied CLAUDE.md to $claude_md_target"
+        else
+            echo "CLAUDE.md already exists, skipped"
+        fi
+    fi
 fi

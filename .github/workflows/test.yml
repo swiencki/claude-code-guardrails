@@ -7,22 +7,21 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - name: Lint bash scripts
-        run: make lint-bash
+        run: shellcheck -x scripts/*.sh tests/*.sh
 
       - name: Lint JSON fragments
-        run: make lint-json
-
-  test:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v5
+        run: |
+          failed=0
+          for f in $(find layers profiles -name '*.json' 2>/dev/null); do
+            jq empty "$f" 2>/dev/null || { echo "FAIL: $f"; failed=1; }
+          done
+          [ "$failed" -eq 0 ] || exit 1
 
       - name: Run tests
         run: make test

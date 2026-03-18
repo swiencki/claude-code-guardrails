@@ -5,7 +5,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck disable=SC2034 # MAKE is used by test files that source this
-MAKE="make -C $REPO_ROOT --no-print-directory"
+MAKE="make -C $REPO_ROOT --no-print-directory yes=1"
 
 # Per-test temp directory
 TEST_TMPDIR=$(mktemp -d)

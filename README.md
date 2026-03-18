@@ -32,8 +32,8 @@ make build
 # Build from a profile (curated set of fragments)
 make build profile=go-dev
 
-# Initialize a project with a profile + CLAUDE.md
-make init profile=infra-dev target=~/my-project
+# Set up a repo with guardrails + CLAUDE.md
+make repo profile=infra-dev target=~/my-project
 
 # Install to your user-level settings (applies to all projects)
 make build target=user
@@ -42,7 +42,7 @@ make build target=user
 make build layers=hooks                   # hooks only
 make build layers=hooks,permissions       # hooks + permissions
 
-# Clean install (replace existing guardrails)
+# Clean install (replace existing guardrails, prompts for confirmation)
 make build overwrite=1
 
 # Browse what's available

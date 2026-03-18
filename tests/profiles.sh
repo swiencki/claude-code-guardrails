@@ -78,6 +78,23 @@ PY_AGENTS="$TEST_TMPDIR/profile-python-dev/.claude/agents"
 assert_file_exists "$PY_AGENTS/reviewer.json" "python-dev: reviewer agent copied"
 assert_file_exists "$PY_AGENTS/docs-reviewer.json" "python-dev: docs-reviewer agent copied"
 
+# Profile switch cleans stale agents
+SWITCH_DIR="$TEST_TMPDIR/profile-switch"
+mkdir -p "$SWITCH_DIR"
+
+# First build all layers (installs all 4 agents)
+$MAKE build target="$SWITCH_DIR" &>/dev/null
+SWITCH_AGENTS="$SWITCH_DIR/.claude/agents"
+assert_file_exists "$SWITCH_AGENTS/docs-reviewer.json" "switch: all agents present before switch"
+assert_file_exists "$SWITCH_AGENTS/release-reviewer.json" "switch: release-reviewer present before switch"
+
+# Switch to go-dev (only wants reviewer + readonly-explorer)
+$MAKE build target="$SWITCH_DIR" profile=go-dev overwrite=1 &>/dev/null
+assert_file_exists "$SWITCH_AGENTS/reviewer.json" "switch: reviewer kept after go-dev"
+assert_file_exists "$SWITCH_AGENTS/readonly-explorer.json" "switch: readonly-explorer kept after go-dev"
+assert_file_not_exists "$SWITCH_AGENTS/docs-reviewer.json" "switch: docs-reviewer removed after go-dev"
+assert_file_not_exists "$SWITCH_AGENTS/release-reviewer.json" "switch: release-reviewer removed after go-dev"
+
 }
 
 print_results

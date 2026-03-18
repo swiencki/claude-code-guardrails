@@ -139,4 +139,83 @@ assert_json_value "$OUTPUT" '.permissions.allow | length' '1' "overwrite single:
 
 }
 
+# Confirmation tests run outside the brace group since they test non-zero exits
+NOMAKE="make -C $REPO_ROOT --no-print-directory"
+
+# Build without yes=1 prompts for confirmation (piping 'n' should abort)
+BUILD_CONFIRM="$TEST_TMPDIR/build-confirm"
+mkdir -p "$BUILD_CONFIRM"
+CONFIRM_OUTPUT=$(echo "n" | $NOMAKE build target="$BUILD_CONFIRM" 2>&1 || true)
+if echo "$CONFIRM_OUTPUT" | grep -q "Aborted"; then
+    pass "build confirm: aborts on 'n'"
+else
+    fail "build confirm: aborts on 'n'" "expected 'Aborted' in output"
+fi
+
+# Piping 'y' should proceed
+BUILD_CONFIRM_YES="$TEST_TMPDIR/build-confirm-yes"
+mkdir -p "$BUILD_CONFIRM_YES"
+echo "y" | $NOMAKE build target="$BUILD_CONFIRM_YES" &>/dev/null
+if [ -f "$BUILD_CONFIRM_YES/.claude/settings.json" ]; then
+    HOOK_COUNT=$(jq '.hooks.PreToolUse | length' "$BUILD_CONFIRM_YES/.claude/settings.json" 2>/dev/null)
+    if [ "$HOOK_COUNT" -gt 0 ]; then
+        pass "build confirm: proceeds on 'y'"
+    else
+        fail "build confirm: proceeds on 'y'" "hooks not written"
+    fi
+else
+    fail "build confirm: proceeds on 'y'" "settings.json missing"
+fi
+
+# dry=1 should skip confirmation
+BUILD_DRY_SKIP="$TEST_TMPDIR/build-dry-skip"
+mkdir -p "$BUILD_DRY_SKIP"
+DRY_OUTPUT=$($NOMAKE build target="$BUILD_DRY_SKIP" dry=1 2>&1)
+if echo "$DRY_OUTPUT" | grep -q "Continue?"; then
+    fail "build dry: skips confirm" "prompt still shown with dry=1"
+else
+    pass "build dry: skips confirm"
+fi
+
+# yes=1 should skip confirmation
+BUILD_YES_SKIP="$TEST_TMPDIR/build-yes-skip"
+mkdir -p "$BUILD_YES_SKIP"
+$NOMAKE build target="$BUILD_YES_SKIP" yes=1 &>/dev/null
+if [ -f "$BUILD_YES_SKIP/.claude/settings.json" ]; then
+    pass "build yes=1: skips confirm"
+else
+    fail "build yes=1: skips confirm" "settings.json missing"
+fi
+
+# Prompt text says "merge" for normal build
+MERGE_PROMPT="$TEST_TMPDIR/prompt-merge"
+mkdir -p "$MERGE_PROMPT"
+MERGE_TEXT=$(echo "n" | $NOMAKE build target="$MERGE_PROMPT" 2>&1 || true)
+if echo "$MERGE_TEXT" | grep -q "will merge"; then
+    pass "prompt: says 'merge' for normal build"
+else
+    fail "prompt: says 'merge' for normal build" "expected 'will merge'"
+fi
+
+# Prompt text says "overwrite" for overwrite build
+OW_PROMPT="$TEST_TMPDIR/prompt-overwrite"
+mkdir -p "$OW_PROMPT"
+OW_TEXT=$(echo "n" | $NOMAKE build target="$OW_PROMPT" overwrite=1 2>&1 || true)
+if echo "$OW_TEXT" | grep -q "will overwrite"; then
+    pass "prompt: says 'overwrite' for overwrite build"
+else
+    fail "prompt: says 'overwrite' for overwrite build" "expected 'will overwrite'"
+fi
+
+# Prompt text says "remove" for remove
+RM_PROMPT="$TEST_TMPDIR/prompt-remove"
+mkdir -p "$RM_PROMPT/.claude"
+echo '{"hooks":{"PreToolUse":[]}}' > "$RM_PROMPT/.claude/settings.json"
+RM_TEXT=$(echo "n" | $NOMAKE remove target="$RM_PROMPT" layers=hooks 2>&1 || true)
+if echo "$RM_TEXT" | grep -q "will remove hooks"; then
+    pass "prompt: says 'remove hooks' for remove"
+else
+    fail "prompt: says 'remove hooks' for remove" "expected 'will remove hooks'"
+fi
+
 print_results
