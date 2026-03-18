@@ -1,0 +1,17 @@
+{
+  "description": "Blocks destructive kubectl operations: delete, drain, exec.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"kubectl\\\\s+(delete|drain|exec)\") | not'",
+            "statusMessage": "Checking for destructive kubectl commands"
+          }
+        ]
+      }
+    ]
+  }
+}

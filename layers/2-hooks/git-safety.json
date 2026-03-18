@@ -1,5 +1,5 @@
 {
-  "description": "Blocks destructive git operations: force push, hard reset, clean, checkout .",
+  "description": "Blocks destructive git operations: force push, hard reset, clean, checkout ., restore .",
   "hooks": {
     "PreToolUse": [
       {

@@ -13,7 +13,7 @@
 set -euo pipefail
 
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
-TEST_FILES=(cli layers merge hooks clean)
+TEST_FILES=(cli layers merge hooks hook-behavior remove clean)
 TOTAL_PASSED=0
 TOTAL_FAILED=0
 ALL_ERRORS=()

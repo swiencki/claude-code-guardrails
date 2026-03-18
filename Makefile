@@ -10,7 +10,7 @@ else
   LAYERS_FLAG :=
 endif
 
-.PHONY: help build list dry-run test lint lint-bash lint-json clean
+.PHONY: help build remove list dry-run test lint lint-bash lint-json clean
 
 help: ## Show this help
 	@echo "Usage: make <target> [TARGET=user|project|/path] [LAYERS=hooks,permissions,...]"
@@ -25,9 +25,8 @@ help: ## Show this help
 	@echo "  /path/to/project  a specific project directory"
 	@echo ""
 	@echo "LAYERS options (comma-separated):"
-	@echo "  hooks             PreToolUse hook guardrails"
+	@echo "  hooks             PreToolUse/PostToolUse hook guardrails"
 	@echo "  permissions       tool allow/deny rules"
-	@echo "  sub-agents        scoped agent definitions"
 	@echo "  (default: all layers)"
 	@echo ""
 	@echo "Examples:"
@@ -37,9 +36,13 @@ help: ## Show this help
 	@echo "  make build LAYERS=hooks,permissions          # hooks + permissions"
 	@echo "  make build LAYERS=hooks TARGET=user          # hooks to user settings"
 	@echo "  make dry-run LAYERS=hooks                   # preview hooks only"
+	@echo "  make remove LAYERS=hooks TARGET=user         # remove hooks from user settings"
 
 build: ## Build settings.json from selected layers
 	@$(SCRIPT) --target $(TARGET) $(LAYERS_FLAG)
+
+remove: ## Remove selected layers from target settings.json
+	@$(SCRIPT) --remove --target $(TARGET) $(LAYERS_FLAG)
 
 list: ## List available fragments per layer
 	@$(SCRIPT) --list

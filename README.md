@@ -48,7 +48,10 @@ make build LAYERS=hooks,permissions       # hooks + permissions
 make build LAYERS=hooks TARGET=user       # hooks to user settings
 make dry-run LAYERS=hooks                 # preview hooks only
 
-# Run the test suite (46 tests)
+# Remove layers from an existing settings.json
+make remove LAYERS=hooks TARGET=user      # remove hooks from user settings
+
+# Run the test suite (87 tests)
 make test
 ```
 
@@ -58,10 +61,16 @@ make test
 layers/
 ├── 1-claude-md/              # Soft guidance (CLAUDE.md templates)
 ├── 2-hooks/                  # Hard guardrails (JSON fragments, merged by build script)
+│   ├── aws-safety.json       # Blocks destructive AWS CLI operations
 │   ├── azure-safety.json     # Blocks az --mode Complete
-│   ├── git-safety.json       # Blocks force push, hard reset, etc.
-│   ├── secret-protection.json # Blocks secret file access/leaks
-│   └── ci-cd-protection.json # Blocks CI/CD pipeline modifications
+│   ├── ci-cd-protection.json # Blocks CI/CD pipeline modifications
+│   ├── git-safety.json       # Blocks force push, hard reset, checkout ., restore .
+│   ├── kubectl-safety.json   # Blocks kubectl delete, drain, exec
+│   ├── package-publish.json  # Blocks npm/cargo/pip publish
+│   ├── rm-safety.json        # Blocks rm -rf /, ~, *
+│   ├── secret-protection.json # Blocks secret/credential file access
+│   ├── supply-chain.json     # Blocks curl|bash, wget|sh
+│   └── terraform-safety.json # Blocks terraform destroy/apply
 ├── 3-permissions/            # Tool-level allow/deny presets
 │   ├── read-only.json        # Read-only access
 │   └── standard-dev.json     # Standard dev (read + test + lint)
@@ -179,23 +188,24 @@ Run the full test suite:
 make test
 ```
 
-The test suite (46 tests) covers:
+The test suite (87 tests) covers:
 
-| Category | What it verifies |
-|---|---|
-| CLI Options | `make help`, `make list`, exit codes, LAYERS documentation |
-| Dry Run | No files written, correct preview output |
-| Build All | Both hooks and permissions present |
-| Single Layer | `LAYERS=hooks` and `LAYERS=permissions` isolation |
-| Multiple Layers | `LAYERS=hooks,permissions` includes both |
-| Invalid Layer | Unknown layer name exits with error |
-| Hook Consolidation | Multiple fragments merge under one matcher |
-| Merge Existing | Preserves model, plugins, and other settings |
-| Merge Single Layer | Adding hooks doesn't touch existing permissions |
-| Idempotency | Running twice doesn't duplicate hooks |
-| Hook Content | Specific guardrails (force push, az Complete, secrets) present |
-| Edge Cases | Invalid target, valid JSON output, user path resolution |
-| Clean | `make clean` removes generated file |
+| Category | Tests | What it verifies |
+|---|---|---|
+| CLI | 11 | `make help`, `make list`, exit codes, LAYERS, targets |
+| Layers | 16 | All/single/multiple layer selection |
+| Merge | 11 | Preserves existing settings, single layer merge, idempotency |
+| Hooks | 9 | Consolidation, matchers (Bash, Write, Edit, Read), valid JSON |
+| Hook Behavior | 31 | Actually runs hook commands against test inputs (block vs allow) |
+| Remove | 9 | `make remove` for hooks, permissions, all; preserves other settings |
+| Clean | 2 | `make clean` removes generated file |
+
+Run a specific test file:
+
+```bash
+./tests/run-tests.sh hook-behavior
+./tests/run-tests.sh merge hooks
+```
 
 ## Contributing
 

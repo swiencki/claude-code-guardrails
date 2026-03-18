@@ -1,0 +1,17 @@
+{
+  "description": "Blocks terraform destroy and unapproved terraform apply.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"terraform\\\\s+(destroy|apply)\") | not'",
+            "statusMessage": "Checking for terraform destroy/apply"
+          }
+        ]
+      }
+    ]
+  }
+}

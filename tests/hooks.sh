@@ -15,8 +15,8 @@ assert_json_count "$OUTPUT" \
 
 assert_json_count "$OUTPUT" \
     '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' \
-    -ge 4 \
-    "at least 4 Bash hooks merged"
+    -ge 8 \
+    "at least 8 Bash hooks merged"
 
 # Specific guardrails are present
 assert_output_contains "force" "git force push hook present" \
@@ -36,6 +36,12 @@ assert_json_count "$OUTPUT" \
     '[.hooks.PreToolUse[] | select(.matcher == "Edit")] | length' \
     -eq 1 \
     "Edit matcher present"
+
+# Read matcher exists (secret-protection)
+assert_json_count "$OUTPUT" \
+    '[.hooks.PreToolUse[] | select(.matcher == "Read")] | length' \
+    -eq 1 \
+    "Read matcher present"
 
 # Valid JSON
 if jq empty "$OUTPUT" 2>/dev/null; then pass "output is valid JSON"; else fail "output is valid JSON" "jq parse failed"; fi

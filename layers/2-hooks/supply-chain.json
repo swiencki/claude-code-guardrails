@@ -1,0 +1,17 @@
+{
+  "description": "Blocks piped remote execution: curl|bash, wget|sh, and similar supply chain attack vectors.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(curl|wget).*\\\\|\\\\s*(bash|sh|zsh|python|perl|ruby)\") | not'",
+            "statusMessage": "Checking for piped remote execution"
+          }
+        ]
+      }
+    ]
+  }
+}
