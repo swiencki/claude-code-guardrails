@@ -22,11 +22,9 @@ brew install jq shellcheck make
 
 ## Quick Start
 
-```bash
-# See what's available
-make profiles
-make list
+Run `make help` for all commands and options.
 
+```bash
 # Preview a profile
 make build profile=go-dev dry=1
 
@@ -36,8 +34,6 @@ make build profile=go-dev target=user
 # Or set up a specific repo with guardrails + CLAUDE.md
 make repo profile=infra-dev target=~/my-project
 ```
-
-Run `make help` for all commands and options.
 
 ## Project Structure
 
@@ -70,7 +66,6 @@ tests/                    # see tests/README.md
 Makefile
 ```
 
-Run `make list` to see all fragments, `make profiles` to see profiles.
 
 ## The Six Layers
 
