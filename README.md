@@ -23,40 +23,21 @@ brew install jq shellcheck make
 ## Quick Start
 
 ```bash
-# Preview what would be generated (no files written)
-make build dry=1
+# See what's available
+make profiles
+make list
 
-# Build all layers (merges with existing settings)
-make build
+# Preview a profile
+make build profile=go-dev dry=1
 
-# Build from a profile (curated set of fragments)
-make build profile=go-dev
+# Install to your user settings (applies to all projects)
+make build profile=go-dev target=user
 
-# Set up a repo with guardrails + CLAUDE.md
+# Or set up a specific repo with guardrails + CLAUDE.md
 make repo profile=infra-dev target=~/my-project
-
-# Install to your user-level settings (applies to all projects)
-make build target=user
-
-# Install specific layers only
-make build layers=hooks                   # hooks only
-make build layers=hooks,permissions       # hooks + permissions
-
-# Clean install (replace existing guardrails)
-make build overwrite=1
-
-# Browse what's available
-make list                                 # all fragments
-make profiles                             # all profiles
-make show fragment=aws/safety.json        # inspect a single fragment
-make show fragment=gh                     # inspect all fragments in a directory
-
-# Remove layers from an existing settings.json
-make remove layers=hooks target=user
-
-# Run the test suite
-make test
 ```
+
+Run `make help` for all commands and options.
 
 ## Project Structure
 
