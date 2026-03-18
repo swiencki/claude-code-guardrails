@@ -1,55 +1,55 @@
 REPO_ROOT := $(shell cd "$(dir $(lastword $(MAKEFILE_LIST)))" && pwd)
 SCRIPT := $(REPO_ROOT)/scripts/build-settings.sh
-TARGET ?= project
-LAYERS ?=
-DRY_RUN ?=
+target ?= project
+layers ?=
+dry ?=
 
 # Build flags from variables
-ifneq ($(LAYERS),)
-  LAYERS_FLAG := --layers $(LAYERS)
+ifneq ($(layers),)
+  LAYERS_FLAG := --layers $(layers)
 else
   LAYERS_FLAG :=
 endif
 
-ifneq ($(DRY_RUN),)
+ifneq ($(dry),)
   DRY_RUN_FLAG := --dry-run
 else
   DRY_RUN_FLAG :=
 endif
 
-.PHONY: help build remove list dry-run test lint lint-bash lint-json clean
+.PHONY: help build remove list test lint lint-bash lint-json clean
 
 help: ## Show this help
-	@echo "Usage: make <target> [TARGET=user|project|/path] [LAYERS=hooks,permissions] [DRY_RUN=1]"
+	@echo "Usage: make <target> [target=user|project|/path] [layers=hooks,permissions] [dry=1]"
 	@echo ""
 	@echo "Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
 	@echo ""
-	@echo "TARGET options:"
+	@echo "target options:"
 	@echo "  user              ~/.claude/settings.json (all projects)"
 	@echo "  project           this repo's .claude/settings.json (default)"
 	@echo "  /path/to/project  a specific project directory"
 	@echo ""
-	@echo "LAYERS options (comma-separated):"
+	@echo "layers options (comma-separated):"
 	@echo "  hooks             PreToolUse/PostToolUse hook guardrails"
 	@echo "  permissions       tool allow/deny rules"
 	@echo "  (default: all layers)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build                                  # all layers to repo"
-	@echo "  make build TARGET=user                      # all layers to user settings"
-	@echo "  make build LAYERS=hooks                     # hooks only"
-	@echo "  make build LAYERS=hooks,permissions          # hooks + permissions"
-	@echo "  make build DRY_RUN=1                        # preview build without writing"
-	@echo "  make remove LAYERS=hooks TARGET=user         # remove hooks from user settings"
-	@echo "  make remove DRY_RUN=1 LAYERS=hooks           # preview removal"
+	@echo "  make build target=user                      # all layers to user settings"
+	@echo "  make build layers=hooks                     # hooks only"
+	@echo "  make build layers=hooks,permissions          # hooks + permissions"
+	@echo "  make build dry=1                            # preview build without writing"
+	@echo "  make remove layers=hooks target=user         # remove hooks from user settings"
+	@echo "  make remove dry=1 layers=hooks               # preview removal"
 
 build: ## Build settings.json from selected layers
-	@$(SCRIPT) --target $(TARGET) $(LAYERS_FLAG) $(DRY_RUN_FLAG)
+	@$(SCRIPT) --target $(target) $(LAYERS_FLAG) $(DRY_RUN_FLAG)
 
 remove: ## Remove selected layers from target settings.json
-	@$(SCRIPT) --remove --target $(TARGET) $(LAYERS_FLAG) $(DRY_RUN_FLAG)
+	@$(SCRIPT) --remove --target $(target) $(LAYERS_FLAG) $(DRY_RUN_FLAG)
 
 list: ## List available fragments per layer
 	@$(SCRIPT) --list

@@ -20,7 +20,7 @@ cat > "$MERGE_TARGET/.claude/settings.json" <<'EXISTING'
 }
 EXISTING
 
-$MAKE build TARGET="$MERGE_TARGET" &>/dev/null
+$MAKE build target="$MERGE_TARGET" &>/dev/null
 OUTPUT="$MERGE_TARGET/.claude/settings.json"
 
 assert_json_value "$OUTPUT" '.model' 'claude-opus-4-6[1m]' "preserves model"
@@ -42,7 +42,7 @@ cat > "$MERGE_HOOKS_TARGET/.claude/settings.json" <<'EXISTING'
 }
 EXISTING
 
-$MAKE build TARGET="$MERGE_HOOKS_TARGET" LAYERS=hooks &>/dev/null
+$MAKE build target="$MERGE_HOOKS_TARGET" layers=hooks &>/dev/null
 OUTPUT="$MERGE_HOOKS_TARGET/.claude/settings.json"
 
 assert_json_value "$OUTPUT" '.model' 'claude-opus-4-6[1m]' "single layer: preserves model"
@@ -53,10 +53,10 @@ assert_json_value "$OUTPUT" '.permissions.deny | length' '1' "single layer: exis
 # Idempotency - running twice should produce same result
 IDEM_TARGET="$TEST_TMPDIR/idempotent"
 mkdir -p "$IDEM_TARGET"
-$MAKE build TARGET="$IDEM_TARGET" &>/dev/null
+$MAKE build target="$IDEM_TARGET" &>/dev/null
 FIRST_COUNT=$(jq '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' "$IDEM_TARGET/.claude/settings.json")
 
-$MAKE build TARGET="$IDEM_TARGET" &>/dev/null
+$MAKE build target="$IDEM_TARGET" &>/dev/null
 SECOND_COUNT=$(jq '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' "$IDEM_TARGET/.claude/settings.json")
 
 if [ "$FIRST_COUNT" -eq "$SECOND_COUNT" ]; then

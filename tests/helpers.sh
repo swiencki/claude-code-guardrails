@@ -83,7 +83,7 @@ build_to() {
     local dir="$TEST_TMPDIR/$1"
     shift
     mkdir -p "$dir"
-    $MAKE build TARGET="$dir" "$@" &>/dev/null
+    $MAKE build target="$dir" "$@" &>/dev/null
     echo "$dir/.claude/settings.json"
 }
 

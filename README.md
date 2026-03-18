@@ -30,27 +30,27 @@ make list
 make build
 
 # Preview what would be generated (no files written)
-make build DRY_RUN=1
+make build dry=1
 
 # Install to your user-level settings (applies to all projects)
 # Merges with existing settings - preserves model, plugins, etc.
-make build TARGET=user
+make build target=user
 
 # Install to a specific project
-make build TARGET=~/my-project
+make build target=~/my-project
 
 # Install specific layers only
-make build LAYERS=hooks                   # hooks only
-make build LAYERS=permissions             # permissions only
-make build LAYERS=hooks,permissions       # hooks + permissions
+make build layers=hooks                   # hooks only
+make build layers=permissions             # permissions only
+make build layers=hooks,permissions       # hooks + permissions
 
 # Combine layer selection with target
-make build LAYERS=hooks TARGET=user       # hooks to user settings
-make build LAYERS=hooks DRY_RUN=1         # preview hooks only
+make build layers=hooks target=user       # hooks to user settings
+make build layers=hooks dry=1             # preview hooks only
 
 # Remove layers from an existing settings.json
-make remove LAYERS=hooks TARGET=user      # remove hooks from user settings
-make remove DRY_RUN=1 LAYERS=hooks        # preview removal
+make remove layers=hooks target=user      # remove hooks from user settings
+make remove dry=1 layers=hooks            # preview removal
 
 # Run the test suite (90 tests)
 make test
