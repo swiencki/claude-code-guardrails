@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Test suite for the guardrails Makefile
+# Test suite for the guardrails build system
 #
 # Usage: ./tests/run-tests.sh  (or: make test)
 
@@ -8,6 +8,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MAKE="make -C $REPO_ROOT --no-print-directory"
+SCRIPT="$REPO_ROOT/scripts/build-settings.sh"
 PASSED=0
 FAILED=0
 ERRORS=()
@@ -68,6 +69,15 @@ assert_output_contains() {
     if echo "$output" | grep -q "$pattern"; then pass "$name"; else fail "$name" "output missing '$pattern'"; fi
 }
 
+# Helper to build into a fresh temp dir
+build_to() {
+    local dir="$TMPDIR/$1"
+    shift
+    mkdir -p "$dir"
+    $MAKE build TARGET="$dir" "$@" &>/dev/null
+    echo "$dir/.claude/settings.json"
+}
+
 # --- Tests ---
 
 echo "=== CLI Options ==="
@@ -77,6 +87,7 @@ assert_exit_code 0 "make list exits 0" $MAKE list
 assert_output_contains "Usage:" "help shows usage" $MAKE help
 assert_output_contains "azure-safety.json" "list shows hook fragments" $MAKE list
 assert_output_contains "standard-dev.json" "list shows permission presets" $MAKE list
+assert_output_contains "LAYERS" "help documents LAYERS" $MAKE help
 
 echo ""
 echo "=== Dry Run ==="
@@ -88,12 +99,9 @@ assert_file_not_exists "$DRY_TARGET/.claude/settings.json" "dry-run does not wri
 assert_output_contains "Would write to" "dry-run shows target path" $MAKE dry-run TARGET="$DRY_TARGET"
 
 echo ""
-echo "=== Build All ==="
+echo "=== Build All Layers (default) ==="
 
-ALL_TARGET="$TMPDIR/build-all"
-mkdir -p "$ALL_TARGET"
-$MAKE build TARGET="$ALL_TARGET" &>/dev/null
-OUTPUT="$ALL_TARGET/.claude/settings.json"
+OUTPUT=$(build_to "build-all")
 
 assert_file_exists "$OUTPUT" "settings.json created"
 assert_json_has_key "$OUTPUT" '.hooks' "has hooks key"
@@ -103,36 +111,41 @@ assert_json_has_key "$OUTPUT" '.permissions.allow' "has permissions.allow"
 assert_json_has_key "$OUTPUT" '.permissions.deny' "has permissions.deny"
 
 echo ""
-echo "=== Hooks Only ==="
+echo "=== Single Layer: hooks ==="
 
-HOOKS_TARGET="$TMPDIR/hooks-only"
-mkdir -p "$HOOKS_TARGET"
-$MAKE hooks TARGET="$HOOKS_TARGET" &>/dev/null
-OUTPUT="$HOOKS_TARGET/.claude/settings.json"
+OUTPUT=$(build_to "hooks-only" LAYERS=hooks)
 
 assert_file_exists "$OUTPUT" "settings.json created"
 assert_json_has_key "$OUTPUT" '.hooks.PreToolUse' "has hooks"
 assert_json_missing_key "$OUTPUT" '.permissions' "no permissions key"
 
 echo ""
-echo "=== Permissions Only ==="
+echo "=== Single Layer: permissions ==="
 
-PERMS_TARGET="$TMPDIR/perms-only"
-mkdir -p "$PERMS_TARGET"
-$MAKE permissions TARGET="$PERMS_TARGET" &>/dev/null
-OUTPUT="$PERMS_TARGET/.claude/settings.json"
+OUTPUT=$(build_to "perms-only" LAYERS=permissions)
 
 assert_file_exists "$OUTPUT" "settings.json created"
 assert_json_has_key "$OUTPUT" '.permissions' "has permissions"
 assert_json_missing_key "$OUTPUT" '.hooks' "no hooks key"
 
 echo ""
+echo "=== Multiple Layers: hooks,permissions ==="
+
+OUTPUT=$(build_to "hooks-perms" LAYERS=hooks,permissions)
+
+assert_file_exists "$OUTPUT" "settings.json created"
+assert_json_has_key "$OUTPUT" '.hooks.PreToolUse' "has hooks"
+assert_json_has_key "$OUTPUT" '.permissions' "has permissions"
+
+echo ""
+echo "=== Invalid Layer ==="
+
+assert_exit_code 2 "invalid layer exits non-zero" $MAKE build TARGET="$TMPDIR/invalid-layer" LAYERS=bogus
+
+echo ""
 echo "=== Hook Consolidation ==="
 
-CONSOL_TARGET="$TMPDIR/consolidation"
-mkdir -p "$CONSOL_TARGET"
-$MAKE build TARGET="$CONSOL_TARGET" &>/dev/null
-OUTPUT="$CONSOL_TARGET/.claude/settings.json"
+OUTPUT=$(build_to "consolidation")
 
 BASH_MATCHER_COUNT=$(jq '[.hooks.PreToolUse[] | select(.matcher == "Bash")] | length' "$OUTPUT")
 if [ "$BASH_MATCHER_COUNT" -eq 1 ]; then
@@ -173,6 +186,30 @@ assert_json_has_key "$OUTPUT" '.hooks.PreToolUse' "adds hooks"
 assert_json_has_key "$OUTPUT" '.permissions' "adds permissions"
 
 echo ""
+echo "=== Merge Single Layer Into Existing ==="
+
+MERGE_HOOKS_TARGET="$TMPDIR/merge-hooks-only"
+mkdir -p "$MERGE_HOOKS_TARGET/.claude"
+cat > "$MERGE_HOOKS_TARGET/.claude/settings.json" <<'EXISTING'
+{
+  "model": "claude-opus-4-6[1m]",
+  "permissions": {
+    "allow": ["Read"],
+    "deny": ["Bash(rm *)"]
+  }
+}
+EXISTING
+
+$MAKE build TARGET="$MERGE_HOOKS_TARGET" LAYERS=hooks &>/dev/null
+OUTPUT="$MERGE_HOOKS_TARGET/.claude/settings.json"
+
+assert_json_value "$OUTPUT" '.model' 'claude-opus-4-6[1m]' "preserves model"
+assert_json_has_key "$OUTPUT" '.hooks.PreToolUse' "adds hooks"
+# Existing permissions should be untouched since we only installed hooks
+assert_json_value "$OUTPUT" '.permissions.allow | length' '1' "existing permissions.allow untouched"
+assert_json_value "$OUTPUT" '.permissions.deny | length' '1' "existing permissions.deny untouched"
+
+echo ""
 echo "=== Idempotency ==="
 
 IDEM_TARGET="$TMPDIR/idempotent"
@@ -192,10 +229,7 @@ fi
 echo ""
 echo "=== Specific Hook Content ==="
 
-CONTENT_TARGET="$TMPDIR/content"
-mkdir -p "$CONTENT_TARGET"
-$MAKE build TARGET="$CONTENT_TARGET" &>/dev/null
-OUTPUT="$CONTENT_TARGET/.claude/settings.json"
+OUTPUT=$(build_to "content")
 
 assert_output_contains "force" "contains force push hook" jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[].statusMessage' "$OUTPUT"
 assert_output_contains "Complete" "contains az --mode Complete hook" jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[].statusMessage' "$OUTPUT"
@@ -215,25 +249,18 @@ assert_exit_code 2 "nonexistent target exits non-zero" $MAKE build TARGET=/tmp/d
 echo ""
 echo "=== Valid JSON Output ==="
 
-VALID_TARGET="$TMPDIR/valid-json"
-mkdir -p "$VALID_TARGET"
-$MAKE build TARGET="$VALID_TARGET" &>/dev/null
-OUTPUT="$VALID_TARGET/.claude/settings.json"
+OUTPUT=$(build_to "valid-json")
 
 if jq empty "$OUTPUT" 2>/dev/null; then pass "output is valid JSON"; else fail "output is valid JSON" "jq parse failed"; fi
 
 echo ""
 echo "=== User Target Path ==="
 
-assert_output_contains "$HOME/.claude/settings.json" "--target user resolves to home dir" $MAKE dry-run TARGET=user
+assert_output_contains "$HOME/.claude/settings.json" "TARGET=user resolves to home dir" $MAKE dry-run TARGET=user
 
 echo ""
 echo "=== Clean ==="
 
-CLEAN_TARGET="$TMPDIR/clean-test"
-mkdir -p "$CLEAN_TARGET/.claude"
-echo '{}' > "$CLEAN_TARGET/.claude/settings.json"
-# clean only removes the repo's own .claude/settings.json, so test that
 $MAKE build &>/dev/null
 assert_file_exists "$REPO_ROOT/.claude/settings.json" "settings.json exists before clean"
 $MAKE clean &>/dev/null

@@ -11,7 +11,7 @@ make list
 # Preview what would be generated (no files written)
 make dry-run
 
-# Build to this repo's .claude/settings.json
+# Build all layers to this repo's .claude/settings.json
 make build
 
 # Install to your user-level settings (applies to all projects)
@@ -21,10 +21,16 @@ make build TARGET=user
 # Install to a specific project
 make build TARGET=~/my-project
 
-# Only install hooks (no permissions)
-make hooks TARGET=user
+# Install specific layers only
+make build LAYERS=hooks                   # hooks only
+make build LAYERS=permissions             # permissions only
+make build LAYERS=hooks,permissions       # hooks + permissions
 
-# Run the test suite
+# Combine layer selection with target
+make build LAYERS=hooks TARGET=user       # hooks to user settings
+make dry-run LAYERS=hooks                 # preview hooks only
+
+# Run the test suite (46 tests)
 make test
 ```
 
@@ -155,16 +161,19 @@ Run the full test suite:
 make test
 ```
 
-The test suite (37 tests) covers:
+The test suite (46 tests) covers:
 
 | Category | What it verifies |
 |---|---|
-| CLI Options | `make help`, `make list`, exit codes, output content |
+| CLI Options | `make help`, `make list`, exit codes, LAYERS documentation |
 | Dry Run | No files written, correct preview output |
 | Build All | Both hooks and permissions present |
-| Hooks/Permissions Only | Correct isolation of each mode |
+| Single Layer | `LAYERS=hooks` and `LAYERS=permissions` isolation |
+| Multiple Layers | `LAYERS=hooks,permissions` includes both |
+| Invalid Layer | Unknown layer name exits with error |
 | Hook Consolidation | Multiple fragments merge under one matcher |
 | Merge Existing | Preserves model, plugins, and other settings |
+| Merge Single Layer | Adding hooks doesn't touch existing permissions |
 | Idempotency | Running twice doesn't duplicate hooks |
 | Hook Content | Specific guardrails (force push, az Complete, secrets) present |
 | Edge Cases | Invalid target, valid JSON output, user path resolution |

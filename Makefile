@@ -1,11 +1,19 @@
 REPO_ROOT := $(shell cd "$(dir $(lastword $(MAKEFILE_LIST)))" && pwd)
 SCRIPT := $(REPO_ROOT)/scripts/build-settings.sh
 TARGET ?= project
+LAYERS ?=
 
-.PHONY: help build hooks permissions list dry-run test clean
+# Build --layers flag from LAYERS variable
+ifneq ($(LAYERS),)
+  LAYERS_FLAG := --layers $(LAYERS)
+else
+  LAYERS_FLAG :=
+endif
+
+.PHONY: help build list dry-run test clean
 
 help: ## Show this help
-	@echo "Usage: make <target> [TARGET=user|project|/path]"
+	@echo "Usage: make <target> [TARGET=user|project|/path] [LAYERS=hooks,permissions,...]"
 	@echo ""
 	@echo "Targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -16,27 +24,28 @@ help: ## Show this help
 	@echo "  project           this repo's .claude/settings.json (default)"
 	@echo "  /path/to/project  a specific project directory"
 	@echo ""
+	@echo "LAYERS options (comma-separated):"
+	@echo "  hooks             PreToolUse hook guardrails"
+	@echo "  permissions       tool allow/deny rules"
+	@echo "  sub-agents        scoped agent definitions"
+	@echo "  (default: all layers)"
+	@echo ""
 	@echo "Examples:"
-	@echo "  make build                       # build to repo .claude/settings.json"
-	@echo "  make build TARGET=user           # install to user-level settings"
-	@echo "  make build TARGET=~/my-project   # install to specific project"
-	@echo "  make hooks TARGET=user           # install hooks only"
-	@echo "  make dry-run TARGET=user         # preview without writing"
+	@echo "  make build                                  # all layers to repo"
+	@echo "  make build TARGET=user                      # all layers to user settings"
+	@echo "  make build LAYERS=hooks                     # hooks only"
+	@echo "  make build LAYERS=hooks,permissions          # hooks + permissions"
+	@echo "  make build LAYERS=hooks TARGET=user          # hooks to user settings"
+	@echo "  make dry-run LAYERS=hooks                   # preview hooks only"
 
-build: ## Build settings.json from all layers
-	@$(SCRIPT) --target $(TARGET)
+build: ## Build settings.json from selected layers
+	@$(SCRIPT) --target $(TARGET) $(LAYERS_FLAG)
 
-hooks: ## Build hooks only (no permissions)
-	@$(SCRIPT) --target $(TARGET) --hooks-only
-
-permissions: ## Build permissions only (no hooks)
-	@$(SCRIPT) --target $(TARGET) --permissions-only
-
-list: ## List available hook and permission fragments
+list: ## List available fragments per layer
 	@$(SCRIPT) --list
 
 dry-run: ## Preview merged output without writing
-	@$(SCRIPT) --target $(TARGET) --dry-run
+	@$(SCRIPT) --target $(TARGET) $(LAYERS_FLAG) --dry-run
 
 test: ## Run the test suite
 	@$(REPO_ROOT)/tests/run-tests.sh
