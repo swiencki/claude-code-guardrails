@@ -10,7 +10,7 @@ else
   LAYERS_FLAG :=
 endif
 
-.PHONY: help build list dry-run test clean
+.PHONY: help build list dry-run test lint lint-bash lint-json clean
 
 help: ## Show this help
 	@echo "Usage: make <target> [TARGET=user|project|/path] [LAYERS=hooks,permissions,...]"
@@ -46,6 +46,25 @@ list: ## List available fragments per layer
 
 dry-run: ## Preview merged output without writing
 	@$(SCRIPT) --target $(TARGET) $(LAYERS_FLAG) --dry-run
+
+lint: lint-bash lint-json ## Run all linters
+
+lint-bash: ## Lint bash scripts with shellcheck
+	@echo "Linting bash scripts..."
+	@shellcheck -x $(REPO_ROOT)/scripts/*.sh $(REPO_ROOT)/tests/*.sh
+	@echo "All bash scripts passed shellcheck"
+
+lint-json: ## Lint JSON fragments with jq
+	@echo "Linting JSON fragments..."
+	@failed=0; \
+	for f in $$(find $(REPO_ROOT)/layers -name '*.json') $(REPO_ROOT)/.claude/settings.json; do \
+		if [ -f "$$f" ] && ! jq empty "$$f" 2>/dev/null; then \
+			echo "  FAIL: $$f"; \
+			failed=1; \
+		fi; \
+	done; \
+	if [ "$$failed" -eq 1 ]; then exit 1; fi
+	@echo "All JSON files are valid"
 
 test: ## Run the test suite
 	@$(REPO_ROOT)/tests/run-tests.sh

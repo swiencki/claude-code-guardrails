@@ -2,6 +2,24 @@
 
 A modular, composable guardrail system for Claude Code. Drop in the layers you need, run `make build`, and get a working `.claude/settings.json`.
 
+## Prerequisites
+
+- **[Claude Code](https://claude.com/claude-code)** - the AI coding agent these guardrails are for
+- **jq** - JSON processor (required for build and lint)
+- **shellcheck** - bash linter (required for `make lint`)
+- **make** - build system
+
+```bash
+# Fedora/RHEL
+sudo dnf install jq shellcheck make
+
+# Ubuntu/Debian
+sudo apt install jq shellcheck make
+
+# macOS
+brew install jq shellcheck make
+```
+
 ## Quick Start
 
 ```bash

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests: layer selection (all, single, multiple)
-
+# shellcheck source=tests/helpers.sh
 source "$(dirname "$0")/helpers.sh"
 
 echo "=== Layers ==="

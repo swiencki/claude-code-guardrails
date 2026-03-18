@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests: hook consolidation and specific hook content
-
+# shellcheck source=tests/helpers.sh
 source "$(dirname "$0")/helpers.sh"
 
 echo "=== Hooks ==="

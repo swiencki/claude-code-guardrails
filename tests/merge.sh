@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Tests: merging into existing settings, idempotency
-
+# shellcheck source=tests/helpers.sh
 source "$(dirname "$0")/helpers.sh"
 
 echo "=== Merge ==="
 
+# shellcheck disable=SC2086 # $MAKE intentionally word-splits
+{
 # Merge all layers into existing settings
 MERGE_TARGET="$TEST_TMPDIR/merge-existing"
 mkdir -p "$MERGE_TARGET/.claude"
@@ -62,5 +64,6 @@ if [ "$FIRST_COUNT" -eq "$SECOND_COUNT" ]; then
 else
     fail "idempotent: no duplicates after two runs" "first: $FIRST_COUNT, second: $SECOND_COUNT"
 fi
+}
 
 print_results

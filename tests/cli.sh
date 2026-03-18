@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Tests: CLI options, help, list, dry-run
-
+# shellcheck source=tests/helpers.sh
 source "$(dirname "$0")/helpers.sh"
 
 echo "=== CLI ==="
 
+# shellcheck disable=SC2086 # $MAKE intentionally word-splits
+{
 assert_exit_code 0 "make help exits 0" $MAKE help
 assert_exit_code 0 "make list exits 0" $MAKE list
 assert_output_contains "Usage:" "help shows usage" $MAKE help
@@ -21,5 +23,6 @@ assert_output_contains "Would write to" "dry-run shows target path" $MAKE dry-ru
 assert_exit_code 2 "nonexistent target exits non-zero" $MAKE build TARGET=/tmp/does-not-exist-at-all
 assert_exit_code 2 "invalid layer exits non-zero" $MAKE build TARGET="$TEST_TMPDIR/invalid-layer" LAYERS=bogus
 assert_output_contains "$HOME/.claude/settings.json" "TARGET=user resolves to home dir" $MAKE dry-run TARGET=user
+}
 
 print_results

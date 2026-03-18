@@ -31,8 +31,6 @@ declare -A LAYER_DIRS=(
     [sub-agents]="4-sub-agents"
 )
 
-# All installable layers
-ALL_LAYERS="hooks permissions sub-agents"
 
 if ! command -v jq &>/dev/null; then
     echo "Error: jq is required." >&2

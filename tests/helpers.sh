@@ -4,6 +4,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC2034 # MAKE is used by test files that source this
 MAKE="make -C $REPO_ROOT --no-print-directory"
 
 # Per-test temp directory
@@ -59,11 +60,7 @@ assert_json_count() {
         fail "$name" "query returned empty"
         return
     fi
-    case "$op" in
-        -eq|-ge|-le|-gt|-lt) ;;
-        *) fail "$name" "unknown operator: $op"; return ;;
-    esac
-    if [ "$actual" "$op" "$expected" ]; then pass "$name"; else fail "$name" "got $actual (expected $op $expected)"; fi
+    if test "$actual" "$op" "$expected"; then pass "$name"; else fail "$name" "got $actual (expected $op $expected)"; fi
 }
 
 assert_exit_code() {
