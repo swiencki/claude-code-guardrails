@@ -2,99 +2,154 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Bash",
         "hooks": [
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"aws\\\\s+.*(delete-|terminate-|remove-|destroy-|drop-)|aws\\\\s+s3\\\\s+(rm|rb)\\\\s\") | not'",
-            "statusMessage": "Checking for destructive AWS CLI commands",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"aws\\\\s+.*(delete-|terminate-|remove-|destroy-|drop-)|aws\\\\s+s3\\\\s+(rm|rb)\\\\s\") | not' >/dev/null",
+            "statusMessage": "Checking for destructive AWS CLI commands"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"--mode\\\\s+Complete\") | not'",
-            "statusMessage": "Checking for az deployment --mode Complete",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"--mode\\\\s+Complete\") | not' >/dev/null",
+            "statusMessage": "Checking for az deployment --mode Complete"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm .*(infrastructure|deploy|config)/\") | not'",
-            "statusMessage": "Checking for protected directory deletion",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"make\\\\s+(deploy|release|apply|promote)\") | not' >/dev/null",
+            "statusMessage": "Checking for dangerous make targets"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"push.*(--force|-f)\") | not'",
-            "statusMessage": "Checking for git force push",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"rm .*(infrastructure|deploy|config)/\") | not' >/dev/null",
+            "statusMessage": "Checking for protected directory deletion"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"git (reset --hard|clean -f|checkout \\\\.|restore \\\\.)\") | not'",
-            "statusMessage": "Checking for destructive git commands",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"gh\\\\s+pr\\\\s+merge.*(-b|--base)\\\\s*(main|master|prod|release)\") | not' >/dev/null",
+            "statusMessage": "Checking for gh pr merge to protected branch"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"kubectl\\\\s+(delete|drain|exec)\") | not'",
-            "statusMessage": "Checking for destructive kubectl commands",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"gh\\\\s+release\\\\s+create\") | not' >/dev/null",
+            "statusMessage": "Checking for gh release create"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(npm publish|yarn publish|pip.*upload|twine upload|cargo publish|gem push)\") | not'",
-            "statusMessage": "Checking for package publish commands",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"gh\\\\s+workflow\\\\s+run.*(prod|production|stage|staging)\") | not' >/dev/null",
+            "statusMessage": "Checking for gh workflow run on prod/stage"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"rm\\\\s+(-[a-zA-Z]*\\\\s+)*(/$|/\\\\s|~|\\\\$HOME|\\\\*|/(etc|usr|var|home|opt|root|bin|sbin|lib|boot|dev|proc|sys|srv|run|mnt|media)(/|\\\\s|$))\") | not'",
-            "statusMessage": "Checking for dangerous rm commands",
-            "type": "command"
+            "type": "command",
+            "command": "BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo none); CMD=$(jq -r '(.tool_input.command // \"\")'); if echo \"$BRANCH\" | grep -qE '^(main|master|prod|release/)' && echo \"$CMD\" | grep -qE 'git\\s+push'; then exit 1; fi",
+            "statusMessage": "Checking for direct push to protected branch"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(cat|bat|less|more|head|tail|vim|nano|curl|wget).*(/\\\\.env|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/|\\\\.pem|\\\\.key|credentials)\") | not'",
-            "statusMessage": "Checking for secret/credential access",
-            "type": "command"
+            "type": "command",
+            "command": "BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo none); CMD=$(jq -r '(.tool_input.command // \"\")'); if echo \"$BRANCH\" | grep -qE '^(main|master|prod|release/)' && echo \"$CMD\" | grep -qE 'git\\s+(rebase|reset --hard|clean -f)'; then exit 1; fi",
+            "statusMessage": "Checking for destructive git op on protected branch"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"(curl|wget).*\\\\|\\\\s*(bash|sh|zsh|python|python3|perl|ruby|node)\") | not'",
-            "statusMessage": "Checking for piped remote execution",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"push.*(--force|-f)\") | not' >/dev/null",
+            "statusMessage": "Checking for git force push"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"terraform\\\\s+(destroy|apply)\") | not'",
-            "statusMessage": "Checking for terraform destroy/apply",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"git (reset --hard|clean -f|checkout \\\\.|restore \\\\.)\") | not' >/dev/null",
+            "statusMessage": "Checking for destructive git commands"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"kubectl\\\\s+(delete|apply|replace|patch|scale|rollout\\\\s+restart|drain|cordon|uncordon).*(--context|--namespace|-n)\\\\s*(prod|production|live)\") | not' >/dev/null",
+            "statusMessage": "Checking for mutating kubectl in prod context"
+          },
+          {
+            "type": "command",
+            "command": "CTX=$(kubectl config current-context 2>/dev/null || echo none); CMD=$(jq -r '(.tool_input.command // \"\")'); if echo \"$CTX\" | grep -qiE '(prod|production|live)' && echo \"$CMD\" | grep -qE 'kubectl\\s+(delete|apply|replace|patch|scale|rollout\\s+restart|drain)'; then exit 1; fi",
+            "statusMessage": "Checking kubectl against current context"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"kubectl\\\\s+(delete|drain|exec)\") | not' >/dev/null",
+            "statusMessage": "Checking for destructive kubectl commands"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"(npm publish|yarn publish|pip.*upload|twine upload|cargo publish|gem push)\") | not' >/dev/null",
+            "statusMessage": "Checking for package publish commands"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"(cat|bat|less|more|head|tail|strings)\\\\s+.*(~|\\\\.)?(/\\\\.ssh/id_|/\\\\.aws/credentials|/\\\\.azure/|kubeconfig|/\\\\.config/gcloud|/\\\\.docker/config\\\\.json|/\\\\.npmrc|/\\\\.pypirc|/\\\\.netrc)\") | not' >/dev/null",
+            "statusMessage": "Checking for credential file access"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"^(env|printenv|set|export -p)\\\\s*$\") | not' >/dev/null",
+            "statusMessage": "Checking for environment variable dump"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"rm\\\\s+(-[a-zA-Z]*\\\\s+)*(/$|/\\\\s|~|\\\\$HOME|\\\\*|/(etc|usr|var|home|opt|root|bin|sbin|lib|boot|dev|proc|sys|srv|run|mnt|media)(/|\\\\s|$))\") | not' >/dev/null",
+            "statusMessage": "Checking for dangerous rm commands"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"(cat|bat|less|more|head|tail|vim|nano|curl|wget).*(/\\\\.env|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/|\\\\.pem|\\\\.key|credentials)\") | not' >/dev/null",
+            "statusMessage": "Checking for secret/credential access"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"(curl|wget).*\\\\|\\\\s*(bash|sh|zsh|python|python3|perl|ruby|node)\") | not' >/dev/null",
+            "statusMessage": "Checking for piped remote execution"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"(echo|printf)\\\\s+.*\\\\$(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIALS|AUTH)\") | not' >/dev/null",
+            "statusMessage": "Checking for token/secret echo"
+          },
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"terraform\\\\s+(destroy|apply)\") | not' >/dev/null",
+            "statusMessage": "Checking for terraform destroy/apply"
           }
-        ],
-        "matcher": "Bash"
+        ]
       },
       {
+        "matcher": "Edit",
         "hooks": [
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"\\\\.github/workflows/\") | not'",
-            "statusMessage": "Checking for CI/CD pipeline edits",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.file_path // \"\" | test(\"\\\\.github/workflows/\") | not' >/dev/null",
+            "statusMessage": "Checking for CI/CD pipeline edits"
           }
-        ],
-        "matcher": "Edit"
+        ]
       },
       {
+        "matcher": "Read",
         "hooks": [
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"(/\\\\.env|\\\\.pem|\\\\.key|credentials|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/)\") | not'",
-            "statusMessage": "Checking for secret file reads",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.file_path // \"\" | test(\"(/\\\\.env|\\\\.pem|\\\\.key|credentials|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/)\") | not' >/dev/null",
+            "statusMessage": "Checking for secret file reads"
           }
-        ],
-        "matcher": "Read"
+        ]
       },
       {
+        "matcher": "Write",
         "hooks": [
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"\\\\.github/workflows/\") | not'",
-            "statusMessage": "Checking for CI/CD pipeline writes",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.file_path // \"\" | test(\"\\\\.github/workflows/\") | not' >/dev/null",
+            "statusMessage": "Checking for CI/CD pipeline writes"
           },
           {
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.file_path | test(\"(/\\\\.env|\\\\.pem|\\\\.key|credentials|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/)\") | not'",
-            "statusMessage": "Checking for secret file writes",
-            "type": "command"
+            "type": "command",
+            "command": "jq -e '.tool_input.file_path // \"\" | test(\"(/\\\\.env|\\\\.pem|\\\\.key|credentials|/\\\\.ssh/|/\\\\.aws/|/\\\\.kube/config|/\\\\.gnupg/)\") | not' >/dev/null",
+            "statusMessage": "Checking for secret file writes"
           }
-        ],
-        "matcher": "Write"
+        ]
       }
     ]
   },

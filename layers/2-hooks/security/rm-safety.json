@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"rm\\\\s+(-[a-zA-Z]*\\\\s+)*(/$|/\\\\s|~|\\\\$HOME|\\\\*|/(etc|usr|var|home|opt|root|bin|sbin|lib|boot|dev|proc|sys|srv|run|mnt|media)(/|\\\\s|$))\") | not' >/dev/null",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"rm\\\\s+(-[a-zA-Z]*\\\\s+)*(/$|/\\\\s|~|\\\\$HOME|\\\\*|/(etc|usr|var|home|opt|root|bin|sbin|lib|boot|dev|proc|sys|srv|run|mnt|media)(/|\\\\s|$))\") | not' >/dev/null",
             "statusMessage": "Checking for dangerous rm commands"
           }
         ]

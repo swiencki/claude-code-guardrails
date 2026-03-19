@@ -109,7 +109,7 @@ Shell commands that execute at specific lifecycle points via `PreToolUse`. They 
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command | test(\"dangerous-pattern\") | not'",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"dangerous-pattern\") | not' >/dev/null",
             "statusMessage": "Checking for dangerous pattern"
           }
         ]

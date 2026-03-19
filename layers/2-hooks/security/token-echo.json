@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"(echo|printf)\\\\s+.*\\\\$(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIALS|AUTH)\") | not' >/dev/null",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"(echo|printf)\\\\s+.*\\\\$(SECRET|TOKEN|PASSWORD|API_KEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIALS|AUTH)\") | not' >/dev/null",
             "statusMessage": "Checking for token/secret echo"
           }
         ]

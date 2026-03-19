@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"^(env|printenv|set|export -p)\\\\s*$\") | not' >/dev/null",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"^(env|printenv|set|export -p)\\\\s*$\") | not' >/dev/null",
             "statusMessage": "Checking for environment variable dump"
           }
         ]

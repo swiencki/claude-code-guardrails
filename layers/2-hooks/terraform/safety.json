@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"terraform\\\\s+(destroy|apply)\") | not' >/dev/null",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"terraform\\\\s+(destroy|apply)\") | not' >/dev/null",
             "statusMessage": "Checking for terraform destroy/apply"
           }
         ]

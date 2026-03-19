@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | jq -e '.command // \"\" | test(\"(curl|wget).*\\\\|\\\\s*(bash|sh|zsh|python|python3|perl|ruby|node)\") | not' >/dev/null",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"(curl|wget).*\\\\|\\\\s*(bash|sh|zsh|python|python3|perl|ruby|node)\") | not' >/dev/null",
             "statusMessage": "Checking for piped remote execution"
           }
         ]

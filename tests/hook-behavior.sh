@@ -11,10 +11,13 @@ HOOKS_DIR="$REPO_ROOT/layers/2-hooks"
 # Usage: test_hook <fragment> <event> <matcher-index> <hook-index> <tool-input-json> <should: block|allow> <name>
 test_hook() {
     local fragment="$1" event="$2" matcher_idx="$3" hook_idx="$4" input="$5" expected="$6" name="$7"
-    local cmd
+    local cmd stdin_json
     cmd=$(jq -r ".hooks.${event}[${matcher_idx}].hooks[${hook_idx}].command" "$HOOKS_DIR/$fragment")
 
-    if CLAUDE_TOOL_INPUT="$input" bash -c "$cmd" &>/dev/null; then
+    # Wrap input in tool_input envelope (matching Claude Code stdin format)
+    stdin_json=$(echo "$input" | jq -c '{tool_input: .}')
+
+    if echo "$stdin_json" | bash -c "$cmd" &>/dev/null; then
         if [ "$expected" = "allow" ]; then pass "$name"; else fail "$name" "should have blocked"; fi
     else
         if [ "$expected" = "block" ]; then pass "$name"; else fail "$name" "should have allowed"; fi
