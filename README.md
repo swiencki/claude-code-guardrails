@@ -263,16 +263,35 @@ See [tests/README.md](tests/README.md) for what each test file covers.
 
 ## Contributing
 
-1. Add a new fragment to the appropriate `layers/` directory
-2. Run `make test` to verify it merges correctly
+### Adding a new hook
+
+1. Create a JSON file in the appropriate `layers/2-hooks/` subdirectory
+2. Hook commands receive tool input as **JSON on stdin** (not via environment variables). Use `jq` to read it directly:
+   ```bash
+   # Bash tool hooks — read .tool_input.command from stdin
+   jq -e '.tool_input.command // "" | test("pattern") | not' >/dev/null
+
+   # Edit/Read/Write hooks — read .tool_input.file_path from stdin
+   jq -e '.tool_input.file_path // "" | test("pattern") | not' >/dev/null
+   ```
+3. Always include `// ""` null guards and `>/dev/null` to suppress stdout
+4. Run `make test` to verify it merges correctly and passes hook behavior tests
+5. Submit a PR
+
+### Modifying existing hooks
+
+When you change a hook command, `make build` **merges** new hooks alongside existing ones by default — the old version persists. Use `overwrite=1` to replace:
+
+```bash
+make build overwrite=1          # replace all hooks + permissions
+make build target=project overwrite=1  # replace project-level only
+```
+
+### Other changes
+
+1. Add or edit fragments in the appropriate `layers/` directory
+2. Run `make test`
 3. Submit a PR
-
-## References
-
-- [Anthropic - Building Safeguards for Claude](https://www.anthropic.com/news/building-safeguards-for-claude)
-- [Claude Code Hooks: Guardrails That Actually Work](https://paddo.dev/blog/claude-code-hooks-guardrails/)
-- [Claude Code Extensions Explained](https://muneebsa.medium.com/claude-code-extensions-explained-skills-mcp-hooks-subagents-agent-teams-plugins-9294907e84ff)
-- [GUARDRAILS.md Protocol](https://guardrails.md/)
 
 ## License
 
