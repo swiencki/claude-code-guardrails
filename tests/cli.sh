@@ -20,7 +20,16 @@ DRY_TARGET="$TEST_TMPDIR/dry-run"
 mkdir -p "$DRY_TARGET"
 $MAKE build target="$DRY_TARGET" dry=1 &>/dev/null
 assert_file_not_exists "$DRY_TARGET/.claude/settings.json" "dry-run build does not write file"
-assert_output_contains "Would write to" "dry-run build shows target path" $MAKE build target="$DRY_TARGET" dry=1
+assert_output_contains "# Changes to" "dry-run build shows diff header" $MAKE build target="$DRY_TARGET" dry=1
+assert_output_contains "current" "dry-run build shows current label" $MAKE build target="$DRY_TARGET" dry=1
+assert_output_contains "+++ proposed" "dry-run build shows proposed label" $MAKE build target="$DRY_TARGET" dry=1
+assert_output_contains "+.*hooks" "dry-run build shows hook additions" $MAKE build target="$DRY_TARGET" dry=1
+
+# dry on build with no changes (idempotent via overwrite)
+DRY_IDEM="$TEST_TMPDIR/dry-idem"
+mkdir -p "$DRY_IDEM"
+$MAKE build target="$DRY_IDEM" overwrite=1 &>/dev/null
+assert_output_contains "# No changes to" "dry-run no-op after overwrite build" $MAKE build target="$DRY_IDEM" overwrite=1 dry=1
 
 # dry on remove
 DRY_REMOVE_TARGET="$TEST_TMPDIR/dry-run-remove"
@@ -28,7 +37,8 @@ mkdir -p "$DRY_REMOVE_TARGET/.claude"
 echo '{"hooks":{"PreToolUse":[]},"permissions":{"allow":[],"deny":[]}}' > "$DRY_REMOVE_TARGET/.claude/settings.json"
 $MAKE remove target="$DRY_REMOVE_TARGET" layers=hooks dry=1 &>/dev/null
 assert_json_has_key "$DRY_REMOVE_TARGET/.claude/settings.json" '.hooks' "dry-run remove does not modify file"
-assert_output_contains "Would write to" "dry-run remove shows target path" $MAKE remove target="$DRY_REMOVE_TARGET" layers=hooks dry=1
+assert_output_contains "# Changes to" "dry-run remove shows diff header" $MAKE remove target="$DRY_REMOVE_TARGET" layers=hooks dry=1
+assert_output_contains "^-.*PreToolUse" "dry-run remove shows hook removals" $MAKE remove target="$DRY_REMOVE_TARGET" layers=hooks dry=1
 
 assert_exit_code 2 "nonexistent target exits non-zero" $MAKE build target=/tmp/does-not-exist-at-all
 assert_exit_code 2 "invalid layer exits non-zero" $MAKE build target="$TEST_TMPDIR/invalid-layer" layers=bogus

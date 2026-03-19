@@ -228,6 +228,28 @@ list_profiles() {
     done
 }
 
+show_diff() {
+    local output="$1" new_content="$2"
+    local old_content='{}'
+    if [ -f "$output" ]; then
+        old_content=$(jq '.' "$output")
+    fi
+    local new_formatted
+    new_formatted=$(echo "$new_content" | jq '.')
+
+    if [ "$old_content" = "$new_formatted" ]; then
+        echo "# No changes to: $output"
+        return
+    fi
+
+    echo "# Changes to: $output"
+    diff --color=auto -u \
+        <(echo "$old_content") \
+        <(echo "$new_formatted") \
+        --label "current" --label "proposed" \
+    || true  # diff exits 1 when files differ
+}
+
 resolve_profile() {
     local name="$1"
     local profile_file="$PROFILES_DIR/${name}.json"
@@ -465,13 +487,21 @@ do_remove() {
             current=$(cat "$output")
             if layer_enabled hooks; then current=$(echo "$current" | jq 'del(.hooks)'); fi
             if layer_enabled permissions; then current=$(echo "$current" | jq 'del(.permissions)'); fi
-            echo "# Would write to: $output"
-            echo "$current" | jq '.'
+            show_diff "$output" "$current"
         fi
         if layer_enabled sub-agents; then
             echo "Would remove sub-agents from $target_dir/agents/"
         fi
         return
+    fi
+
+    if settings_layers_enabled && [ -f "$output" ]; then
+        local preview
+        preview=$(cat "$output")
+        if layer_enabled hooks; then preview=$(echo "$preview" | jq 'del(.hooks)'); fi
+        if layer_enabled permissions; then preview=$(echo "$preview" | jq 'del(.permissions)'); fi
+        show_diff "$output" "$preview"
+        echo ""
     fi
 
     if ! $SKIP_CONFIRM; then
@@ -710,14 +740,17 @@ if $DRY_RUN; then
         install_sub_agents "$TARGET_DIR"
     fi
     if settings_layers_enabled; then
-        echo "# Would write to: $OUTPUT"
-        echo "$final"
+        show_diff "$OUTPUT" "$final"
     fi
     if $INIT_REPO; then
         echo "# Would copy CLAUDE.md to $claude_md_target"
     fi
 else
     echo "$summary"
+    if settings_layers_enabled; then
+        show_diff "$OUTPUT" "$final"
+        echo ""
+    fi
     if ! $SKIP_CONFIRM; then
         if [ "$TARGET" = "user" ]; then
             echo "This will apply guardrails to all projects."
