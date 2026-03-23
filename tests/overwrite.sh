@@ -197,6 +197,42 @@ else
     fail "prompt: says 'merge' for normal build" "expected 'will merge'"
 fi
 
+# User-level default profile says it applies the baseline to all projects
+DEFAULT_PROMPT_TEXT=$(echo "n" | $NOMAKE build target=user profile=default 2>&1 || true)
+if echo "$DEFAULT_PROMPT_TEXT" | grep -q "apply the default guardrails baseline to all projects"; then
+    pass "prompt: says default baseline applies to all projects"
+else
+    fail "prompt: says default baseline applies to all projects" "expected default baseline all-projects message"
+fi
+
+# User-level named profile says it applies that profile to all projects
+GO_DEV_PROMPT_TEXT=$(echo "n" | $NOMAKE build target=user profile=go-dev 2>&1 || true)
+if echo "$GO_DEV_PROMPT_TEXT" | grep -q "apply the go-dev guardrails profile to all projects"; then
+    pass "prompt: says named profile applies to all projects"
+else
+    fail "prompt: says named profile applies to all projects" "expected named profile all-projects message"
+fi
+
+# Successful profile apply reminds the user to reload Claude Code
+RELOAD_NOTICE_TARGET="$TEST_TMPDIR/reload-notice"
+mkdir -p "$RELOAD_NOTICE_TARGET"
+RELOAD_NOTICE_OUTPUT=$($NOMAKE build target="$RELOAD_NOTICE_TARGET" profile=go-dev yes=1 2>&1)
+if echo "$RELOAD_NOTICE_OUTPUT" | grep -q "Claude Code may need a reload"; then
+    pass "prompt: profile apply shows reload notice"
+else
+    fail "prompt: profile apply shows reload notice" "expected reload notice after profile apply"
+fi
+
+# Low-level layer builds do not show the profile reload notice
+NO_RELOAD_NOTICE_TARGET="$TEST_TMPDIR/no-reload-notice"
+mkdir -p "$NO_RELOAD_NOTICE_TARGET"
+NO_RELOAD_NOTICE_OUTPUT=$($NOMAKE build target="$NO_RELOAD_NOTICE_TARGET" layers=hooks yes=1 2>&1)
+if echo "$NO_RELOAD_NOTICE_OUTPUT" | grep -q "Claude Code may need a reload"; then
+    fail "prompt: layer build skips reload notice" "unexpected reload notice for non-profile build"
+else
+    pass "prompt: layer build skips reload notice"
+fi
+
 # Prompt text says "overwrite" for overwrite build
 OW_PROMPT="$TEST_TMPDIR/prompt-overwrite"
 mkdir -p "$OW_PROMPT"

@@ -1,10 +1,10 @@
 {
   "description": "Infrastructure and platform work with strict guardrails for expensive mistakes.",
-  "intendedUse": "Terraform, Kubernetes, Azure/AWS infrastructure work. High friction on destructive operations, read-only allowed freely.",
+  "intendedUse": "Terraform, Kubernetes, Azure/AWS infrastructure work. Inherits the minimal default baseline, then adds broader git/security, cloud, CI/CD, and platform-specific safety hooks.",
   "layers": ["hooks", "permissions", "sub-agents"],
   "fragments": {
     "hooks": [
-      "git/safety.json",
+      "git/destructive.json",
       "git/prod-branch.json",
       "security/rm-safety.json",
       "security/secret-protection.json",
@@ -15,7 +15,6 @@
       "terraform/safety.json",
       "kubernetes/safety.json",
       "kubernetes/prod-context.json",
-      "azure/safety.json",
       "aws/safety.json",
       "ci-cd/protection.json",
       "ci-cd/make-deploy.json",

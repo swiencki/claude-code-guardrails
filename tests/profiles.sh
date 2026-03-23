@@ -12,6 +12,9 @@ echo "=== Profiles ==="
 assert_output_contains "go-dev" "list-profiles shows go-dev" \
     $MAKE profiles
 
+assert_output_contains "default" "list-profiles shows default" \
+    $MAKE profiles
+
 assert_output_contains "infra-dev" "list-profiles shows infra-dev" \
     $MAKE profiles
 
@@ -36,7 +39,16 @@ assert_json_has_key "$GO_OUTPUT" '.hooks' "go-dev: has hooks"
 assert_json_has_key "$GO_OUTPUT" '.permissions' "go-dev: has permissions"
 assert_json_count "$GO_OUTPUT" \
     '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' \
-    -eq 10 "go-dev: has 10 Bash hooks"
+    -eq 11 "go-dev: has 11 Bash hooks"
+
+# default profile builds
+DEFAULT_OUTPUT=$(build_to "profile-default" profile=default overwrite=1)
+assert_file_exists "$DEFAULT_OUTPUT" "default: settings.json created"
+assert_json_has_key "$DEFAULT_OUTPUT" '.hooks' "default: has hooks"
+assert_json_count "$DEFAULT_OUTPUT" \
+    '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' \
+    -eq 2 "default: has 2 Bash hooks"
+assert_json_missing_key "$DEFAULT_OUTPUT" '.permissions' "default: does not add permissions"
 
 # go-dev sub-agents
 GO_AGENTS="$TEST_TMPDIR/profile-go-dev/.claude/agents"
@@ -61,7 +73,7 @@ assert_file_exists "$RO_OUTPUT" "readonly-review: settings.json created"
 assert_json_has_key "$RO_OUTPUT" '.hooks' "readonly-review: has hooks (secret scanning)"
 assert_json_count "$RO_OUTPUT" \
     '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' \
-    -eq 1 "readonly-review: has 1 Bash hook (secrets only)"
+    -eq 2 "readonly-review: inherits 2 Bash hooks from default"
 assert_json_count "$RO_OUTPUT" \
     '.permissions.deny | length' \
     -gt 0 "readonly-review: has deny rules"

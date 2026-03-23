@@ -4,7 +4,7 @@ Composable guardrails for Claude Code.
 
 This repo gives you a practical way to:
 
-- install a ready-made profile such as `go-dev` or `infra-dev`
+- install a ready-made profile such as `default`, `go-dev`, or `infra-dev`
 - merge hooks, permissions, and sub-agents into Claude settings
 - probe "would this be allowed?" before you rely on a rule
 - extend the system with your own fragments
@@ -24,6 +24,9 @@ Prerequisites:
 # See available profiles
 make profiles
 
+# Start with the shared baseline
+make build profile=default
+
 # Preview a profile
 make build profile=go-dev dry=1
 
@@ -39,10 +42,13 @@ make repo profile=infra-dev target=~/my-project
 ### Install guardrails for all projects
 
 ```bash
-make build profile=go-dev
+make build profile=default
 ```
 
 This writes to `~/.claude/settings.json`.
+After applying a profile, reload Claude Code so it picks up the updated settings cleanly.
+
+If you want a language- or workflow-specific setup, choose a richer profile such as `go-dev` or `infra-dev`. Every non-default profile automatically includes the `default` baseline first.
 
 ### Install guardrails for one repo
 
@@ -67,7 +73,7 @@ make build profile=go-dev dry=1
 By default, builds merge with existing settings.
 
 ```bash
-make build profile=go-dev overwrite=1
+make build profile=go-dev replace=1
 ```
 
 ### Remove installed layers
@@ -127,22 +133,33 @@ Use:
 - `profile=` for normal workflow checks
 - `fragment=` for rule debugging
 
+Use `layers=` only for advanced, low-level composition work.
+
 ## Choose a profile
 
-Profiles are curated bundles of fragments for common workflows.
+Profiles are curated bundles of fragments for common workflows. Every profile except `default` automatically includes the `default` baseline first.
 
 | Profile | Best for | Includes |
 |---|---|---|
-| `go-dev` | Go app and backend development | git safety, security hooks, package publish protection, standard dev permissions, reviewer/explorer agents |
-| `python-dev` | Python development | git safety, security hooks, standard dev permissions, reviewer/docs-reviewer agents |
-| `infra-dev` | Terraform, Kubernetes, Azure/AWS, release work | git, cloud, CI/CD, security, kubernetes, terraform, standard dev permissions, readonly/release agents |
-| `readonly-review` | Audits, review, repo exploration | minimal hooks, read-only permissions, reviewer/docs-reviewer/explorer agents |
+| `default` | minimal baseline safety for any repo | blocks git force push and Azure `--mode Complete`, no extra permissions, no extra agents |
+| `go-dev` | Go app and backend development | default baseline plus broader git/security hooks, package publish protection, standard dev permissions, reviewer/explorer agents |
+| `python-dev` | Python development | default baseline plus broader git/security hooks, standard dev permissions, reviewer/docs-reviewer agents |
+| `infra-dev` | Terraform, Kubernetes, Azure/AWS, release work | default baseline plus cloud, CI/CD, kubernetes, terraform, standard dev permissions, readonly/release agents |
+| `readonly-review` | Audits, review, repo exploration | default baseline plus read-only permissions and reviewer/docs-reviewer/explorer agents |
 
 See all profile names with:
 
 ```bash
 make profiles
 ```
+
+The normal path is:
+
+1. pick a profile
+2. `make build profile=...`
+3. `make probe ...` if you want to confirm behavior
+
+Use `layers=` only when you are intentionally bypassing profiles and composing fragments by hand.
 
 ## Mental model
 
@@ -254,6 +271,13 @@ make test
 ```
 
 See [tests/README.md](tests/README.md) for the full test inventory.
+
+## Help
+
+```bash
+make help            # recommended commands and workflows
+make help-advanced   # low-level flags such as layers= and replace=1
+```
 
 ## Contributing
 

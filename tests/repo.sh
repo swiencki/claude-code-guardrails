@@ -26,7 +26,7 @@ assert_file_exists "$REPO_PROFILE/.claude/settings.json" "repo profile: settings
 assert_file_exists "$REPO_PROFILE/CLAUDE.md" "repo profile: CLAUDE.md copied"
 assert_json_count "$REPO_PROFILE/.claude/settings.json" \
     '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks | length' \
-    -eq 10 "repo profile: has 10 Bash hooks (go-dev)"
+    -eq 11 "repo profile: has 11 Bash hooks (go-dev)"
 
 # Repo does not overwrite existing CLAUDE.md
 REPO_EXISTING="$TEST_TMPDIR/repo-existing"

@@ -24,6 +24,9 @@ assert_output_contains "Effective permission outcome: DENY" "probe: permissions 
 assert_output_contains "Profile: infra-dev" "probe: profile mode identifies selected profile" \
     $MAKE probe profile=infra-dev tool=Bash command="git push --force origin main"
 
+assert_output_contains "Profile: default" "probe: default profile can be selected directly" \
+    $MAKE probe profile=default tool=Bash command="git push --force origin main"
+
 assert_output_contains "Decision: DENY" "probe: profile denies git push --force" \
     $MAKE probe profile=infra-dev tool=Bash command="git push --force origin main"
 

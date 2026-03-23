@@ -4,13 +4,12 @@
 #
 # Usage:
 #   ./scripts/build-settings.sh                                  # install all layers
-#   ./scripts/build-settings.sh --layers hooks                   # install hooks only
-#   ./scripts/build-settings.sh --layers hooks,permissions       # install hooks and permissions
-#   ./scripts/build-settings.sh --layers hooks --target user     # install hooks to user settings
+#   ./scripts/build-settings.sh --profile go-dev                 # install a profile
+#   ./scripts/build-settings.sh --profile infra-dev --dry-run    # preview a profile
+#   ./scripts/build-settings.sh --layers hooks                   # advanced: install hooks only
 #   ./scripts/build-settings.sh --remove --layers hooks          # remove hooks from settings
 #   ./scripts/build-settings.sh --target ~/my-project            # install all to a project
 #   ./scripts/build-settings.sh --dry-run                        # preview without writing
-#   ./scripts/build-settings.sh --profile go-dev                  # install a profile
 #   ./scripts/build-settings.sh --list-profiles                  # list available profiles
 #   ./scripts/build-settings.sh --list                           # list available fragments
 #
@@ -33,6 +32,7 @@ SKIP_CONFIRM=false
 INIT_REPO=false
 ACTION="build"
 PROFILES_DIR="$REPO_ROOT/profiles"
+BASE_PROFILE="default"
 
 # Available layers (mapped to directory names)
 declare -A LAYER_DIRS=(
@@ -60,47 +60,51 @@ usage() {
 Usage: build-settings.sh [OPTIONS]
 
 Options:
-  --target <location>     Where to install settings (default: project)
-                            user      - ~/.claude/settings.json (all projects)
-                            project   - this repo's .claude/settings.json
-                            <path>    - a specific project directory
-  --layers <list>         Comma-separated layers to install/remove (default: all)
-                            hooks         - PreToolUse/PostToolUse hook guardrails
-                            permissions   - tool allow/deny rules
-                            sub-agents    - scoped agent definitions (.claude/agents/)
-                          Combine: --layers hooks,permissions
+  --target <location>     Where to install settings (default: user)
+                             user      - ~/.claude/settings.json (all projects)
+                             project   - this repo's .claude/settings.json
+                             <path>    - a specific project directory
+  --profile <name>        Build from a profile (recommended)
+  --layers <list>         Advanced: comma-separated layers to install/remove
+                             hooks         - PreToolUse/PostToolUse hook guardrails
+                             permissions   - tool allow/deny rules
+                             sub-agents    - scoped agent definitions (.claude/agents/)
+                           Combine: --layers hooks,permissions
+  --replace               Replace generated layers instead of merging them
+  --overwrite             Deprecated alias for --replace
   --remove                Remove selected layers from target settings.json
   --dry-run               Preview the merged output without writing
   --list                  List available fragments per layer
   --show <fragment>       Show the full contents of a fragment (e.g. aws/safety.json)
-  --profile <name>        Build from a profile (e.g. go-dev, infra-dev)
+  --show-profile <name>   Show a profile and the fragments it will apply
+  --filter <query>        With --show-profile, show JSON for matching effective fragments
   --list-profiles         List available profiles
   --help, -h              Show this help
 
 Examples:
-  # Install all guardrails to user-level settings
-  ./scripts/build-settings.sh --target user
+  # Install a profile to user-level settings
+  ./scripts/build-settings.sh --profile go-dev --target user
 
-  # Install only hooks
-  ./scripts/build-settings.sh --layers hooks
-
-  # Install sub-agents to a project
-  ./scripts/build-settings.sh --layers sub-agents --target ~/my-project
+  # Preview a profile without writing
+  ./scripts/build-settings.sh --profile infra-dev --dry-run
 
   # Remove hooks from user settings
   ./scripts/build-settings.sh --remove --layers hooks --target user
 
-  # Install hooks and permissions to a specific project
+  # Advanced: install only hooks and permissions to a specific project
   ./scripts/build-settings.sh --layers hooks,permissions --target ~/my-project
 
-  # Preview what hooks would look like
-  ./scripts/build-settings.sh --layers hooks --dry-run
+  # Replace previously generated layers instead of merging
+  ./scripts/build-settings.sh --profile go-dev --replace
 
   # Show the contents of a specific fragment
   ./scripts/build-settings.sh --show aws/safety.json
 
-  # Install a profile
-  ./scripts/build-settings.sh --profile go-dev --target ~/my-project
+  # Show a profile and the fragments it applies
+  ./scripts/build-settings.sh --show-profile go-dev
+
+  # Show matching fragment JSON within a profile
+  ./scripts/build-settings.sh --show-profile default --filter git/safety.json
 
   # List available profiles
   ./scripts/build-settings.sh --list-profiles
@@ -211,6 +215,119 @@ show_fragment() {
     done
 }
 
+profile_effective_fragments() {
+    local name="$1"
+    local layer="$2"
+
+    while IFS= read -r chain_profile; do
+        local chain_profile_file
+        chain_profile_file=$(resolve_profile "$chain_profile")
+        jq -r --arg layer "$layer" --arg source "$chain_profile" '
+            .fragments[$layer] // [] | .[] | "\($source)|\(.)"
+        ' "$chain_profile_file"
+    done < <(
+        if [ "$name" != "$BASE_PROFILE" ]; then
+            printf '%s\n' "$BASE_PROFILE"
+        fi
+        printf '%s\n' "$name"
+    )
+}
+
+resolve_profile_fragment_file() {
+    local fragment="$1"
+    local layer
+
+    for layer in hooks permissions sub-agents; do
+        local dir="$LAYERS_DIR/${LAYER_DIRS[$layer]}"
+        if [ -f "$dir/$fragment" ]; then
+            printf '%s\n' "$dir/$fragment"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+show_profile() {
+    local name="$1"
+    local filter="${2:-}"
+    local profile_file
+    profile_file=$(resolve_profile "$name")
+
+    local desc use
+    desc=$(jq -r '.description // "No description"' "$profile_file")
+    use=$(jq -r '.intendedUse // ""' "$profile_file")
+
+    echo "Profile: $name"
+    echo "Description: $desc"
+    if [ -n "$use" ]; then
+        echo "Intended use: $use"
+    fi
+    echo ""
+    echo "Effective fragments:"
+    echo ""
+
+    local layer found
+    for layer in hooks permissions sub-agents; do
+        echo "  $layer:"
+        found=false
+        while IFS='|' read -r source_profile fragment; do
+            [ -n "$fragment" ] || continue
+            found=true
+            printf '    - %s (from %s)\n' "$fragment" "$source_profile"
+        done < <(profile_effective_fragments "$name" "$layer")
+        if [ "$found" = false ]; then
+            echo "    - none"
+        fi
+        echo ""
+    done
+
+    if [ -n "$filter" ]; then
+        local matches=()
+        local layer_match
+        for layer_match in hooks permissions sub-agents; do
+            while IFS='|' read -r source_profile fragment; do
+                [ -n "$fragment" ] || continue
+                if [[ "$fragment" == *"$filter"* ]]; then
+                    matches+=("$source_profile|$fragment")
+                fi
+            done < <(profile_effective_fragments "$name" "$layer_match")
+        done
+
+        if [ ${#matches[@]} -eq 0 ]; then
+            echo "No profile fragment matching '$filter' found in profile '$name'." >&2
+            exit 1
+        fi
+
+        echo "Matching fragment details:"
+        echo ""
+
+        local index=0
+        local source_profile fragment full_path desc
+        for match in "${matches[@]}"; do
+            IFS='|' read -r source_profile fragment <<< "$match"
+            full_path=$(resolve_profile_fragment_file "$fragment") || {
+                echo "Could not resolve fragment file for '$fragment'" >&2
+                exit 1
+            }
+            desc=$(jq -r '.description // "No description"' "$full_path")
+
+            echo "Fragment: $fragment"
+            echo "Source: $source_profile"
+            echo "Description: $desc"
+            echo ""
+            jq '.' "$full_path"
+
+            index=$((index + 1))
+            if [ "$index" -lt "${#matches[@]}" ]; then
+                echo ""
+                echo "---"
+                echo ""
+            fi
+        done
+    fi
+}
+
 list_profiles() {
     echo "Available profiles:"
     echo ""
@@ -263,21 +380,40 @@ resolve_profile() {
     echo "$profile_file"
 }
 
+profile_chain() {
+    local name="$1"
+
+    if [ "$name" != "$BASE_PROFILE" ]; then
+        resolve_profile "$BASE_PROFILE"
+    fi
+    resolve_profile "$name"
+}
+
+profile_layers() {
+    local name="$1"
+
+    while IFS= read -r profile_file; do
+        jq -r '.layers // [] | .[]' "$profile_file"
+    done < <(profile_chain "$name") | awk 'NF && !seen[$0]++'
+}
+
 # Collect fragment files for a profile's layer
 # Returns newline-separated absolute paths
 profile_fragments() {
-    local profile_file="$1"
+    local profile_name="$1"
     local layer="$2"
     local dir="$LAYERS_DIR/${LAYER_DIRS[$layer]}"
 
-    jq -r --arg layer "$layer" '.fragments[$layer] // [] | .[]' "$profile_file" | while IFS= read -r frag; do
+    while IFS= read -r profile_file; do
+        jq -r --arg layer "$layer" '.fragments[$layer] // [] | .[]' "$profile_file"
+    done < <(profile_chain "$profile_name") | while IFS= read -r frag; do
         local full="$dir/$frag"
         if [ ! -f "$full" ]; then
             echo "Warning: fragment '$frag' not found in $layer layer" >&2
             continue
         fi
         echo "$full"
-    done
+    done | awk 'NF && !seen[$0]++'
 }
 
 merge_hooks() {
@@ -289,8 +425,6 @@ merge_hooks() {
     done
 
     if [ -n "$PROFILE" ]; then
-        local profile_file
-        profile_file=$(resolve_profile "$PROFILE")
         while IFS= read -r f; do
             [ -n "$f" ] || continue
             for event in $HOOK_EVENTS; do
@@ -298,7 +432,7 @@ merge_hooks() {
                 entries=$(jq --arg ev "$event" '.hooks[$ev] // []' "$f")
                 result=$(echo "$result" | jq --arg ev "$event" --argjson new "$entries" '.hooks[$ev] += $new')
             done
-        done < <(profile_fragments "$profile_file" "hooks")
+        done < <(profile_fragments "$PROFILE" "hooks")
     else
         while IFS= read -r f; do
             for event in $HOOK_EVENTS; do
@@ -318,7 +452,7 @@ merge_hooks() {
                     | group_by(.matcher)
                     | map({
                         matcher: .[0].matcher,
-                        hooks: [.[].hooks[]]
+                        hooks: ([.[].hooks[]] | unique_by(.command))
                     })
                 )
             ) | map(select(.value | length > 0)) | from_entries
@@ -333,8 +467,6 @@ merge_permissions() {
     local result='{"permissions":{"allow":[],"deny":[]}}'
 
     if [ -n "$PROFILE" ]; then
-        local profile_file
-        profile_file=$(resolve_profile "$PROFILE")
         while IFS= read -r f; do
             [ -n "$f" ] || continue
             local perms
@@ -343,7 +475,7 @@ merge_permissions() {
                 .permissions.allow = (.permissions.allow + $new.allow | unique) |
                 .permissions.deny = (.permissions.deny + $new.deny | unique)
             ')
-        done < <(profile_fragments "$profile_file" "permissions")
+        done < <(profile_fragments "$PROFILE" "permissions")
     else
         while IFS= read -r f; do
             local perms
@@ -365,12 +497,10 @@ install_sub_agents() {
     local files=()
 
     if [ -n "$PROFILE" ]; then
-        local profile_file
-        profile_file=$(resolve_profile "$PROFILE")
         while IFS= read -r f; do
             [ -n "$f" ] || continue
             files+=("$f")
-        done < <(profile_fragments "$profile_file" "sub-agents")
+        done < <(profile_fragments "$PROFILE" "sub-agents")
     else
         for f in "$src_dir"/*.json; do
             [ -f "$f" ] || continue
@@ -548,7 +678,7 @@ while [ $# -gt 0 ]; do
             ACTION="remove"
             shift
             ;;
-        --overwrite)
+        --replace|--overwrite)
             OVERWRITE=true
             shift
             ;;
@@ -570,6 +700,17 @@ while [ $# -gt 0 ]; do
             ;;
         --show)
             show_fragment "${2:?--show requires a fragment name (e.g. aws/safety.json)}"
+            exit 0
+            ;;
+        --show-profile)
+            show_profile_name="${2:?--show-profile requires a profile name (e.g. default, go-dev)}"
+            shift 2
+            show_profile_filter=""
+            if [ "${1:-}" = "--filter" ]; then
+                show_profile_filter="${2:?--filter requires a fragment query}"
+                shift 2
+            fi
+            show_profile "$show_profile_name" "$show_profile_filter"
             exit 0
             ;;
         --profile)
@@ -599,11 +740,8 @@ if [ -n "$PROFILE" ]; then
         echo "Profiles define their own layers." >&2
         exit 1
     fi
-    local_profile=$(resolve_profile "$PROFILE")
-    LAYERS=$(jq -r '.layers // [] | join(",")' "$local_profile")
-    echo "Profile: $PROFILE"
-    jq -r '.description // ""' "$local_profile"
-    echo ""
+    resolve_profile "$PROFILE" >/dev/null
+    LAYERS=$(profile_layers "$PROFILE" | paste -sd, -)
 fi
 
 TARGET_DIR=$(resolve_target_dir)
@@ -680,62 +818,129 @@ fi
 # Format
 final=$(echo "$final" | jq '.')
 
-# Build summary
-summary=""
-if layer_enabled hooks; then
-    for event in $HOOK_EVENTS; do
-        hook_line=$(echo "$final" | jq -r --arg ev "$event" '.hooks[$ev][]? | "  [\($ev)/\(.matcher)] \(.hooks | length) hook(s)"')
-        if [ -n "$hook_line" ]; then
-            summary+="Hooks:
-$hook_line
-"
-        fi
-    done
-fi
-
-if layer_enabled permissions; then
-    perm_line=$(echo "$final" | jq -r '.permissions // {} | "  allow: \(.allow // [] | length) rules, deny: \(.deny // [] | length) rules"')
-    summary+="Permissions:
-$perm_line
-"
-fi
-
-if layer_enabled sub-agents; then
-    src_dir="$LAYERS_DIR/${LAYER_DIRS[sub-agents]}"
-    agent_names=""
-    if [ -n "$PROFILE" ]; then
-        pf=$(resolve_profile "$PROFILE")
-        agent_names=$(jq -r '.fragments["sub-agents"] // [] | .[] | rtrimstr(".json")' "$pf" | paste -sd ", " -)
-    else
-        agent_names=$(find "$src_dir" -name '*.json' -type f -exec basename {} .json \; | sort | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
-    fi
-    if [ -n "$agent_names" ]; then
-        summary+="Agents:   $agent_names
-"
-    fi
-fi
-
-if [ -n "$PROFILE" ]; then
-    summary="Profile:  $PROFILE
-$summary"
-fi
-
-if $INIT_REPO; then
-    case "$TARGET" in
-        user) claude_md_target="$HOME/CLAUDE.md" ;;
-        project) claude_md_target="$REPO_ROOT/CLAUDE.md" ;;
-        *) claude_md_target="$TARGET/CLAUDE.md" ;;
-    esac
-    summary+="CLAUDE.md: $claude_md_target
-"
-fi
-
 action_verb="merge"
 if $OVERWRITE; then action_verb="overwrite"; fi
 if $INIT_REPO; then action_verb="initialize"; fi
 
+summary_target="$OUTPUT"
+if $DRY_RUN; then summary_target="$OUTPUT (dry-run)"; fi
+
+summary_scope="default build"
+if [ -n "$PROFILE" ]; then
+    summary_scope="profile:$PROFILE"
+elif [ -n "$LAYERS" ]; then
+    summary_scope="advanced layers:$LAYERS"
+fi
+
+summary_mode="merged"
+if $OVERWRITE; then summary_mode="replaced"; fi
+if $INIT_REPO; then summary_mode="$summary_mode + repo init"; fi
+
+agents_count=0
+agent_names="none"
+if layer_enabled sub-agents; then
+    if [ -n "$PROFILE" ]; then
+        profile_agents=()
+        while IFS= read -r agent_file; do
+            [ -n "$agent_file" ] || continue
+            profile_agents+=("$(basename "$agent_file" .json)")
+        done < <(profile_fragments "$PROFILE" "sub-agents")
+
+        agents_count="${#profile_agents[@]}"
+        if [ "$agents_count" -gt 0 ]; then
+            agent_names=$(printf '%s\n' "${profile_agents[@]}" | jq -R . | jq -s -r 'join(", ")')
+        else
+            agent_names="none"
+        fi
+    else
+        src_dir="$LAYERS_DIR/${LAYER_DIRS[sub-agents]}"
+        agent_names=$(find "$src_dir" -name '*.json' -type f -exec basename {} .json \; | sort | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+        if [ -n "$agent_names" ]; then
+            agents_count=$(printf '%s\n' "$agent_names" | awk -F', ' '{print NF}')
+        fi
+    fi
+    if [ -n "$agent_names" ]; then
+        :
+    else
+        agents_count=0
+        agent_names="none"
+    fi
+fi
+
+print_build_summary() {
+    echo "Summary:"
+    printf '  target: %s\n' "$summary_target"
+    printf '  scope:  %s\n' "$summary_scope"
+    printf '  mode:   %s\n' "$summary_mode"
+    if settings_layers_enabled; then
+        hooks_count=$(echo "$final" | jq '[.hooks? // {} | to_entries[]? | .value[]? | .hooks[]?] | length')
+        allow_count=$(echo "$final" | jq '.permissions.allow // [] | length')
+        deny_count=$(echo "$final" | jq '.permissions.deny // [] | length')
+        printf '  hooks:  %s\n' "$hooks_count"
+        printf '  perms:  allow=%s deny=%s\n' "$allow_count" "$deny_count"
+    fi
+    if layer_enabled sub-agents; then
+        printf '  agents: %s' "$agents_count"
+        if [ "$agent_names" != "none" ]; then
+            printf ' (%s)' "$agent_names"
+        fi
+        printf '\n'
+    fi
+    if $INIT_REPO; then
+        case "$TARGET" in
+            user) claude_md_target="$HOME/CLAUDE.md" ;;
+            project) claude_md_target="$REPO_ROOT/CLAUDE.md" ;;
+            *) claude_md_target="$TARGET/CLAUDE.md" ;;
+        esac
+        printf '  CLAUDE.md: %s\n' "$claude_md_target"
+    fi
+    echo ""
+}
+
+print_scope_message() {
+    case "$TARGET" in
+        user)
+            if [ -n "$PROFILE" ]; then
+                if [ "$PROFILE" = "$BASE_PROFILE" ]; then
+                    echo "This will apply the default guardrails baseline to all projects."
+                else
+                    printf "This will apply the %s guardrails profile to all projects.\n" "$PROFILE"
+                fi
+            else
+                echo "This will apply guardrails to all projects."
+            fi
+            ;;
+        project)
+            if [ -n "$PROFILE" ]; then
+                if [ "$PROFILE" = "$BASE_PROFILE" ]; then
+                    echo "This will apply the default guardrails baseline to this project."
+                else
+                    printf "This will apply the %s guardrails profile to this project.\n" "$PROFILE"
+                fi
+            fi
+            ;;
+        *)
+            if [ -n "$PROFILE" ]; then
+                if [ "$PROFILE" = "$BASE_PROFILE" ]; then
+                    printf "This will apply the default guardrails baseline to %s.\n" "$TARGET"
+                else
+                    printf "This will apply the %s guardrails profile to %s.\n" "$PROFILE" "$TARGET"
+                fi
+            fi
+            ;;
+    esac
+}
+
+print_reload_notice() {
+    if [ -n "$PROFILE" ]; then
+        echo "Claude Code may need a reload to pick up the updated profile settings."
+        echo "Reload Claude Code before starting your next session."
+        echo ""
+    fi
+}
+
 if $DRY_RUN; then
-    echo "$summary"
+    print_build_summary
     if layer_enabled sub-agents; then
         install_sub_agents "$TARGET_DIR"
     fi
@@ -746,15 +951,13 @@ if $DRY_RUN; then
         echo "# Would copy CLAUDE.md to $claude_md_target"
     fi
 else
-    echo "$summary"
+    print_build_summary
     if settings_layers_enabled; then
         show_diff "$OUTPUT" "$final"
         echo ""
     fi
     if ! $SKIP_CONFIRM; then
-        if [ "$TARGET" = "user" ]; then
-            echo "This will apply guardrails to all projects."
-        fi
+        print_scope_message
         printf "This will %s guardrails into %s. Continue? [y/N] " "$action_verb" "$OUTPUT"
         read -r ans
         if [ "$ans" != "y" ] && [ "$ans" != "Y" ]; then
@@ -777,5 +980,6 @@ else
             echo "CLAUDE.md already exists, skipped"
         fi
     fi
+    print_reload_notice
     echo ""
 fi

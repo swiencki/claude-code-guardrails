@@ -6,18 +6,18 @@ Run with `make test` or `./tests/run-tests.sh`.
 
 | File | Tests | What it covers |
 |---|---|---|
-| `cli.sh` | 16 | `make help`, `make list`, probe help text, dry-run, error handling, target resolution |
+| `cli.sh` | 24 | `make help`, `make help-advanced`, profile-first help text, replace summary, dry-run, error handling, target resolution |
 | `layers.sh` | 10 | Building all layers, hooks-only, permissions-only, combined |
 | `merge.sh` | 9 | Preserves existing settings (model, plugins), idempotent merges |
 | `hooks.sh` | 9 | Hook consolidation by matcher, correct count, specific hooks present |
 | `hook-behavior.sh` | 68 | Every hook fragment block/allow tested with real tool input JSON |
-| `probe.sh` | 17 | Generic probing for default build, fragments, and full profiles across hooks, permissions, and sub-agent fragments |
-| `probe-workflow.sh` | 6 | User-facing `make probe` workflows for default build, profile, and fragment debugging |
+| `probe.sh` | 18 | Generic probing for default build, fragments, and full profiles across hooks, permissions, and sub-agent fragments |
+| `probe-workflow.sh` | 8 | User-facing `make probe` workflows for default build, profile, fragment debugging, and denial-source summaries |
 | `sub-agents.sh` | 18 | Agent file copy, remove, dry-run, combined with other layers |
 | `overwrite.sh` | 19 | Merge vs overwrite, settings preservation, confirmation prompts |
 | `remove.sh` | 9 | Remove hooks, permissions, both, preserves unrelated settings |
-| `profiles.sh` | 35 | All 4 profiles build correctly, agent selection, stale agent cleanup |
-| `show.sh` | 7 | Single fragment, directory match, partial match, no match |
+| `profiles.sh` | 40 | All 5 profiles build correctly, default-profile inheritance, agent selection, stale agent cleanup |
+| `show.sh` | 17 | Profile effective-fragment output, filtered profile fragment JSON, inherited defaults, single fragment, directory match, partial match, typo alias support, and usage errors |
 | `repo.sh` | 8 | CLAUDE.md copy, profile support, existing file preservation, dry-run |
 
 ## How it works

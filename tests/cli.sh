@@ -8,12 +8,20 @@ echo "=== CLI ==="
 # shellcheck disable=SC2086 # $MAKE intentionally word-splits
 {
 assert_exit_code 0 "make help exits 0" $MAKE help
+assert_exit_code 0 "make help-advanced exits 0" $MAKE help-advanced
 assert_exit_code 0 "make list exits 0" $MAKE list
 assert_output_contains "Usage:" "help shows usage" $MAKE help
-assert_output_contains "layers" "help documents layers" $MAKE help
-assert_output_contains "dry=" "help documents dry" $MAKE help
-assert_output_contains "make probe tool=Bash command='git push --force origin main'" "help shows default probe workflow" $MAKE help
+assert_output_contains "Run 'make help-advanced'" "help points to advanced help" $MAKE help
+assert_output_contains "make build profile=default" "help shows default baseline profile" $MAKE help
+assert_output_contains "make build profile=go-dev" "help shows profile-first build" $MAKE help
+assert_output_contains "make remove profile=default" "help shows remove workflow" $MAKE help
+assert_output_contains "make show profile=default fragment=git" "help shows show workflow" $MAKE help
+assert_output_contains "make probe profile=default command='git push --force origin main'" "help shows default probe workflow" $MAKE help
 assert_output_contains "Explain allow/deny for the merged build, a profile, or a fragment" "help describes probe target" $MAKE help
+assert_output_contains "replace=1" "advanced help documents replace flag" $MAKE help-advanced
+assert_output_contains "layers=..." "advanced help documents layers flag" $MAKE help-advanced
+assert_output_contains "make show profile=go-dev" "advanced help documents profile show" $MAKE help-advanced
+assert_output_contains "make show profile=default fragment=git" "advanced help documents filtered profile show" $MAKE help-advanced
 assert_output_contains "azure/safety.json" "list shows hook fragments" $MAKE list
 assert_output_contains "presets/standard-dev.json" "list shows permission presets" $MAKE list
 
@@ -45,6 +53,10 @@ assert_output_contains "^-.*PreToolUse" "dry-run remove shows hook removals" $MA
 assert_exit_code 2 "nonexistent target exits non-zero" $MAKE build target=/tmp/does-not-exist-at-all
 assert_exit_code 2 "invalid layer exits non-zero" $MAKE build target="$TEST_TMPDIR/invalid-layer" layers=bogus
 assert_output_contains "$HOME/.claude/settings.json" "target=user resolves to home dir" $MAKE build target=user dry=1
+REPLACE_TARGET="$TEST_TMPDIR/replace"
+mkdir -p "$REPLACE_TARGET"
+assert_output_contains "mode:   replaced" "replace flag updates summary" $MAKE build target="$TEST_TMPDIR/replace" profile=go-dev replace=1 dry=1
+assert_output_contains "agents: 2 (reviewer, readonly-explorer)" "summary shows installed agents" $MAKE build target="$TEST_TMPDIR/replace" profile=go-dev replace=1 dry=1
 }
 
 print_results

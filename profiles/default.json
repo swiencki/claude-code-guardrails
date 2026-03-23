@@ -1,0 +1,11 @@
+{
+  "description": "Minimal default baseline applied to every other profile.",
+  "intendedUse": "Minimal default guardrails: block git force push and Azure --mode Complete with no extra permissions or agents. Select this when you only want the narrow baseline.",
+  "layers": ["hooks"],
+  "fragments": {
+    "hooks": [
+      "git/force-push.json",
+      "azure/safety.json"
+    ]
+  }
+}

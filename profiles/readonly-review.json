@@ -1,11 +1,9 @@
 {
   "description": "Read-only review and audit. No mutations, ideal for code review and repo exploration.",
-  "intendedUse": "Code review, architecture review, PR review, docs audit, repo spelunking. Makes it very hard to accidentally edit or run state-changing commands.",
+  "intendedUse": "Code review, architecture review, PR review, docs audit, repo spelunking. Inherits the minimal default baseline, then adds strict read-only permissions and review-focused agents.",
   "layers": ["hooks", "permissions", "sub-agents"],
   "fragments": {
-    "hooks": [
-      "security/secret-protection.json"
-    ],
+    "hooks": [],
     "permissions": [
       "presets/read-only.json"
     ],

@@ -17,6 +17,8 @@ EOF
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LAYERS_DIR="$REPO_ROOT/layers"
+PROFILES_DIR="$REPO_ROOT/profiles"
+BASE_PROFILE="default"
 
 fragment=""
 profile=""
@@ -148,7 +150,7 @@ relative_path() {
 }
 
 collect_profile_files() {
-    local profile_file="$1"
+    local profile_name="$1"
     local layer="$2"
     local base=""
 
@@ -162,10 +164,33 @@ collect_profile_files() {
             ;;
     esac
 
-    jq -r --arg layer "$layer" '.fragments[$layer] // [] | .[]' "$profile_file" | while IFS= read -r item; do
+    collect_profile_chain "$profile_name" | while IFS= read -r profile_file; do
+        jq -r --arg layer "$layer" '.fragments[$layer] // [] | .[]' "$profile_file"
+    done | while IFS= read -r item; do
         [ -n "$item" ] || continue
         printf '%s/%s\n' "$base" "$item"
-    done
+    done | awk 'NF && !seen[$0]++'
+}
+
+resolve_profile_file() {
+    local profile_name="$1"
+    local profile_file="$PROFILES_DIR/${profile_name}.json"
+
+    [ -f "$profile_file" ] || {
+        echo "Profile not found: $profile_name" >&2
+        exit 1
+    }
+
+    printf '%s\n' "$profile_file"
+}
+
+collect_profile_chain() {
+    local profile_name="$1"
+
+    if [ "$profile_name" != "$BASE_PROFILE" ]; then
+        resolve_profile_file "$BASE_PROFILE"
+    fi
+    resolve_profile_file "$profile_name"
 }
 
 hook_files=()
@@ -173,14 +198,10 @@ permission_files=()
 tool_files=()
 
 if [ -n "$profile" ]; then
-    profile_file="$REPO_ROOT/profiles/${profile}.json"
-    [ -f "$profile_file" ] || {
-        echo "Profile not found: $profile" >&2
-        exit 1
-    }
+    profile_file=$(resolve_profile_file "$profile")
 
-    while IFS= read -r file; do hook_files+=("$file"); done < <(collect_profile_files "$profile_file" hooks)
-    while IFS= read -r file; do permission_files+=("$file"); done < <(collect_profile_files "$profile_file" permissions)
+    while IFS= read -r file; do hook_files+=("$file"); done < <(collect_profile_files "$profile" hooks)
+    while IFS= read -r file; do permission_files+=("$file"); done < <(collect_profile_files "$profile" permissions)
 
     fragment_path="$profile_file"
     fragment_rel="profile:$profile"

@@ -5,8 +5,10 @@ SCRIPT    := $(REPO_ROOT)/scripts/build-settings.sh
 target  ?= user
 layers  ?=
 dry     ?=
+replace ?=
 overwrite ?=
 fragment ?=
+fragement ?=
 profile ?=
 yes     ?=
 event   ?= PreToolUse
@@ -21,34 +23,54 @@ expect  ?=
 FLAGS := --target $(target)
 FLAGS += $(if $(layers),--layers $(layers))
 FLAGS += $(if $(dry),--dry-run)
+FLAGS += $(if $(replace),--overwrite)
 FLAGS += $(if $(overwrite),--overwrite)
 FLAGS += $(if $(profile),--profile $(profile))
 FLAGS += $(if $(yes),--yes)
 
-.PHONY: help build repo remove list show profiles test probe
+.PHONY: help help-advanced build repo remove list show profiles test probe
 
 help: ## Show available commands
-	@echo "Usage: make <command> [target=user|project|/path] [layers=...] [profile=...] [dry=1] [overwrite=1]"
+	@echo "Usage: make <command> [profile=name] [target=user|project|/path]"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 	@echo ""
-	@echo "Examples:"
-	@echo "  make build                          # merge all layers into user settings"
-	@echo "  make build dry=1                    # preview without writing"
-	@echo "  make build profile=go-dev           # build from a profile"
-	@echo "  make build target=project           # apply to this repo only"
-	@echo "  make build layers=hooks             # hooks only"
-	@echo "  make build overwrite=1              # replace instead of merge"
-	@echo "  make build yes=1                    # skip confirmation prompt"
-	@echo "  make repo target=~/my-project       # set up a repo with guardrails + CLAUDE.md"
-	@echo "  make show fragment=aws/safety.json  # inspect a fragment"
-	@echo "  make probe tool=Bash command='git push --force origin main'      # probe merged default build"
-	@echo "  make probe fragment=git/safety.json tool=Bash command='git push --force origin main'"
-	@echo "  make probe profile=infra-dev tool=Bash command='git push --force origin main'"
-	@echo "  make remove layers=hooks            # remove hooks from settings"
+	@echo "Recommended:"
+	@echo "  make profiles"
+	@echo "  make build profile=default"
+	@echo "  make build profile=go-dev"
+	@echo "  make build profile=go-dev dry=1"
+	@echo "  make repo profile=infra-dev target=~/my-project"
+	@echo "  make remove profile=default"
+	@echo "  make show profile=default fragment=git"
+	@echo "  make probe profile=default command='git push --force origin main'"
+	@echo ""
+	@echo "Run 'make help-advanced' for layers=, replace=1, and other low-level options."
 
-build: ## Build settings.json from layers or profile
+help-advanced: ## Show advanced flags and low-level workflows
+	@echo "Advanced usage: make <command> [profile=name] [target=user|project|/path] [dry=1] [replace=1]"
+	@echo ""
+	@echo "Advanced flags:"
+	@echo "  target=...     # user (default), project, or a specific repo path"
+	@echo "  dry=1          # preview without writing"
+	@echo "  replace=1      # replace generated layers instead of merging them"
+	@echo "  yes=1          # skip confirmation prompt"
+	@echo "  layers=...     # advanced: build/remove selected layers directly"
+	@echo "  overwrite=1    # deprecated alias for replace=1"
+	@echo ""
+	@echo "Advanced examples:"
+	@echo "  make build target=project"
+	@echo "  make build profile=go-dev replace=1"
+	@echo "  make build layers=hooks"
+	@echo "  make remove layers=hooks,permissions"
+	@echo "  make show profile=go-dev"
+	@echo "  make show profile=default fragment=git"
+	@echo "  make show fragment=aws/safety.json"
+	@echo "  make probe profile=infra-dev tool=Bash command='git push --force origin main'"
+	@echo "  make probe fragment=git/safety.json tool=Bash command='git push --force origin main'"
+
+build: ## Build settings.json (profile-first; layers are advanced)
 	@$(SCRIPT) $(FLAGS)
 
 repo: ## Set up a repo with guardrails + CLAUDE.md
@@ -63,9 +85,16 @@ list: ## List available fragments
 profiles: ## List available profiles
 	@$(SCRIPT) --list-profiles
 
-show: ## Show a fragment (usage: make show fragment=name)
-	@[ -n "$(fragment)" ] || { echo "Usage: make show fragment=<name>" >&2; $(SCRIPT) --list; exit 1; }
-	@$(SCRIPT) --show $(fragment)
+show: ## Show a profile's effective fragments or a fragment definition
+	@if [ -n "$(profile)" ]; then \
+		$(SCRIPT) --show-profile $(profile) $(if $(fragment),--filter $(fragment)) $(if $(fragement),--filter $(fragement)); \
+	elif [ -n "$(fragment)" ] || [ -n "$(fragement)" ]; then \
+		$(SCRIPT) --show $(or $(fragment),$(fragement)); \
+	else \
+		echo "Usage: make show [profile=name | fragment=name]" >&2; \
+		$(SCRIPT) --list-profiles; \
+		exit 1; \
+	fi
 
 probe: ## Explain allow/deny for the merged build, a profile, or a fragment
 	@bash $(REPO_ROOT)/scripts/probe-fragment.sh \

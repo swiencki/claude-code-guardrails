@@ -1,0 +1,17 @@
+{
+  "description": "Blocks destructive git working-tree operations: hard reset, clean, checkout ., restore .",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"git (reset --hard|clean -f|checkout \\\\.|restore \\\\.)\") | not' >/dev/null",
+            "statusMessage": "Checking for destructive git commands"
+          }
+        ]
+      }
+    ]
+  }
+}
