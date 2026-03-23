@@ -6,11 +6,13 @@ Run with `make test` or `./tests/run-tests.sh`.
 
 | File | Tests | What it covers |
 |---|---|---|
-| `cli.sh` | 14 | `make help`, `make list`, dry-run, error handling, target resolution |
+| `cli.sh` | 16 | `make help`, `make list`, probe help text, dry-run, error handling, target resolution |
 | `layers.sh` | 10 | Building all layers, hooks-only, permissions-only, combined |
 | `merge.sh` | 9 | Preserves existing settings (model, plugins), idempotent merges |
 | `hooks.sh` | 9 | Hook consolidation by matcher, correct count, specific hooks present |
 | `hook-behavior.sh` | 68 | Every hook fragment block/allow tested with real tool input JSON |
+| `probe.sh` | 17 | Generic probing for default build, fragments, and full profiles across hooks, permissions, and sub-agent fragments |
+| `probe-workflow.sh` | 6 | User-facing `make probe` workflows for default build, profile, and fragment debugging |
 | `sub-agents.sh` | 18 | Agent file copy, remove, dry-run, combined with other layers |
 | `overwrite.sh` | 19 | Merge vs overwrite, settings preservation, confirmation prompts |
 | `remove.sh` | 9 | Remove hooks, permissions, both, preserves unrelated settings |
@@ -31,6 +33,7 @@ Run with `make test` or `./tests/run-tests.sh`.
 ./tests/run-tests.sh cli              # one file
 ./tests/run-tests.sh hooks merge      # multiple files
 ./tests/run-tests.sh hook-behavior    # all 68 hook block/allow tests
+./tests/run-tests.sh probe-workflow   # human-readable probe workflow checks
 ```
 
 ## Adding tests

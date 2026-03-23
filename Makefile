@@ -9,6 +9,13 @@ overwrite ?=
 fragment ?=
 profile ?=
 yes     ?=
+event   ?= PreToolUse
+tool    ?= Bash
+matcher ?=
+hook    ?=
+command ?=
+input   ?=
+expect  ?=
 
 # Build flags from variables
 FLAGS := --target $(target)
@@ -18,7 +25,7 @@ FLAGS += $(if $(overwrite),--overwrite)
 FLAGS += $(if $(profile),--profile $(profile))
 FLAGS += $(if $(yes),--yes)
 
-.PHONY: help build repo remove list show profiles test
+.PHONY: help build repo remove list show profiles test probe
 
 help: ## Show available commands
 	@echo "Usage: make <command> [target=user|project|/path] [layers=...] [profile=...] [dry=1] [overwrite=1]"
@@ -36,6 +43,9 @@ help: ## Show available commands
 	@echo "  make build yes=1                    # skip confirmation prompt"
 	@echo "  make repo target=~/my-project       # set up a repo with guardrails + CLAUDE.md"
 	@echo "  make show fragment=aws/safety.json  # inspect a fragment"
+	@echo "  make probe tool=Bash command='git push --force origin main'      # probe merged default build"
+	@echo "  make probe fragment=git/safety.json tool=Bash command='git push --force origin main'"
+	@echo "  make probe profile=infra-dev tool=Bash command='git push --force origin main'"
 	@echo "  make remove layers=hooks            # remove hooks from settings"
 
 build: ## Build settings.json from layers or profile
@@ -56,6 +66,18 @@ profiles: ## List available profiles
 show: ## Show a fragment (usage: make show fragment=name)
 	@[ -n "$(fragment)" ] || { echo "Usage: make show fragment=<name>" >&2; $(SCRIPT) --list; exit 1; }
 	@$(SCRIPT) --show $(fragment)
+
+probe: ## Explain allow/deny for the merged build, a profile, or a fragment
+	@bash $(REPO_ROOT)/scripts/probe-fragment.sh \
+		$(if $(fragment),--fragment "$(fragment)") \
+		$(if $(profile),--profile "$(profile)") \
+		--event "$(event)" \
+		--tool "$(tool)" \
+		$(if $(matcher),--matcher "$(matcher)") \
+		$(if $(hook),--hook "$(hook)") \
+		$(if $(command),--command "$(command)") \
+		$(if $(input),--input '$(input)') \
+		$(if $(expect),--expect "$(expect)")
 
 test: ## Run the test suite
 	@$(REPO_ROOT)/tests/run-tests.sh

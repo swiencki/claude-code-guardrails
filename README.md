@@ -1,107 +1,194 @@
 # Claude Code Guardrails
 
-A modular, composable guardrail system for Claude Code. Drop in the layers you need, run `make build`, and get a working `.claude/settings.json`.
+Composable guardrails for Claude Code.
 
-## Prerequisites
+This repo gives you a practical way to:
 
-- **[Claude Code](https://claude.com/claude-code)** - the AI coding agent these guardrails are for
-- **jq** - JSON processor (required for build)
-- **shellcheck** - bash linter (required for CI)
-- **make** - build system
+- install a ready-made profile such as `go-dev` or `infra-dev`
+- merge hooks, permissions, and sub-agents into Claude settings
+- probe "would this be allowed?" before you rely on a rule
+- extend the system with your own fragments
 
-```bash
-# Fedora/RHEL
-sudo dnf install jq shellcheck make
+If you only read one section, read [Quick start](#quick-start).
 
-# Ubuntu/Debian
-sudo apt install jq shellcheck make
+## Quick start
 
-# macOS
-brew install jq shellcheck make
-```
+Prerequisites:
 
-## Quick Start
-
-Run `make help` for all commands and options.
+- [Claude Code](https://claude.com/claude-code)
+- `jq`
+- `make`
+- `shellcheck` if you want to run the full test suite locally
 
 ```bash
+# See available profiles
+make profiles
+
 # Preview a profile
 make build profile=go-dev dry=1
 
-# Install (defaults to user settings, applies to all projects)
+# Install a profile to user-level settings (~/.claude/settings.json)
 make build profile=go-dev
 
-# Or set up a specific repo with guardrails + CLAUDE.md
+# Or install to one repo and copy the CLAUDE.md template
 make repo profile=infra-dev target=~/my-project
 ```
 
+## Common workflows
 
-## Project Structure
+### Install guardrails for all projects
 
-```
-profiles/                 # Curated fragment bundles
-├── go-dev.json           # Go development
-├── python-dev.json       # Python development
-├── infra-dev.json        # Infrastructure/platform work
-└── readonly-review.json  # Code review and audit
-layers/
-├── 1-claude-md/          # Soft guidance (CLAUDE.md templates)
-├── 2-hooks/              # Hard guardrails (merged into settings.json)
-│   ├── aws/              # AWS CLI safety
-│   ├── azure/            # Azure CLI safety
-│   ├── ci-cd/            # CI/CD pipeline and make deploy protection
-│   ├── gh/               # GitHub CLI (merge, workflow, release)
-│   ├── git/              # Git safety and protected branch guards
-│   ├── kubernetes/       # kubectl safety and prod context protection
-│   ├── packages/         # Package publish protection
-│   ├── security/         # rm, secrets, credentials, env, supply chain
-│   └── terraform/        # Terraform safety
-├── 3-permissions/        # Tool-level allow/deny presets
-│   └── presets/          # Read-only, standard-dev, etc.
-├── 4-sub-agents/         # Scoped agents (copied to .claude/agents/)
-├── 5-agent-teams/        # Agent team configs (planned)
-└── 6-enterprise/         # Org policy templates (planned)
-scripts/
-└── build-settings.sh     # Merges fragments into .claude/settings.json
-tests/                    # see tests/README.md
-Makefile
+```bash
+make build profile=go-dev
 ```
 
+This writes to `~/.claude/settings.json`.
 
-## The Six Layers
+### Install guardrails for one repo
 
-Claude Code provides a layered guardrail system. Each layer serves a different purpose and enforcement level.
+```bash
+make build profile=infra-dev target=~/my-project
+```
 
-| Layer | Enforcement | Best For |
+Or, if you also want a starter `CLAUDE.md` in that repo:
+
+```bash
+make repo profile=infra-dev target=~/my-project
+```
+
+### Preview before writing
+
+```bash
+make build profile=go-dev dry=1
+```
+
+### Replace instead of merge
+
+By default, builds merge with existing settings.
+
+```bash
+make build profile=go-dev overwrite=1
+```
+
+### Remove installed layers
+
+```bash
+make remove layers=hooks
+make remove layers=permissions
+make remove layers=hooks,permissions
+```
+
+## Probe guardrails before you trust them
+
+Use `make probe` to answer "would this be allowed?" with a readable explanation.
+
+### Probe the default merged build
+
+This matches the same default scope as `make build`.
+
+```bash
+make probe tool=Bash command='git push --force origin main'
+```
+
+### Probe a specific profile
+
+```bash
+make probe profile=infra-dev tool=Bash command='git push --force origin main'
+```
+
+### Probe one fragment for debugging
+
+```bash
+make probe fragment=git/safety.json tool=Bash command='git push --force origin main'
+```
+
+Typical output:
+
+```text
+Target: 2-hooks/git/safety.json
+Description: Blocks destructive git operations: force push, hard reset, clean, checkout ., restore .
+Tool: Bash
+Input: {"command":"git push --force origin main"}
+
+Decision: DENY
+
+Hook checks (2 matched):
+  1. BLOCKED: Checking for git force push
+  2. PASSED: Checking for destructive git commands
+  Overall hook outcome: DENY
+
+Permissions:
+  - No matching permission rules.
+```
+
+Use:
+
+- no selector for "what would my default build do?"
+- `profile=` for normal workflow checks
+- `fragment=` for rule debugging
+
+## Choose a profile
+
+Profiles are curated bundles of fragments for common workflows.
+
+| Profile | Best for | Includes |
 |---|---|---|
-| [CLAUDE.md](#1-claudemd) | Soft (LLM follows instructions) | Workflow preferences, coding conventions |
-| [Hooks](#2-hooks) | Hard (shell scripts) | Blocking dangerous commands, validation gates |
-| [Permissions](#3-permissions) | Hard (tool-level) | Controlling which tools/commands need approval |
-| [Sub-agents](#4-sub-agents) | Hard (scoped tool access) | Restricting capabilities for delegated tasks |
-| [Agent Teams](#5-agent-teams) | Hard (independent sessions) | Parallel work with isolated guardrails |
-| [Enterprise/Org Policies](#6-enterpriseorg-policies) | Hard (organization-managed) | Company-wide restrictions across all users |
+| `go-dev` | Go app and backend development | git safety, security hooks, package publish protection, standard dev permissions, reviewer/explorer agents |
+| `python-dev` | Python development | git safety, security hooks, standard dev permissions, reviewer/docs-reviewer agents |
+| `infra-dev` | Terraform, Kubernetes, Azure/AWS, release work | git, cloud, CI/CD, security, kubernetes, terraform, standard dev permissions, readonly/release agents |
+| `readonly-review` | Audits, review, repo exploration | minimal hooks, read-only permissions, reviewer/docs-reviewer/explorer agents |
 
-### 1. CLAUDE.md
+See all profile names with:
 
-Natural language instructions that Claude reads and follows. Not mechanically enforced - it's guidance, not a gate.
+```bash
+make profiles
+```
 
-**When to use:** Coding conventions, workflow preferences, project-specific rules you trust Claude to follow.
+## Mental model
 
-**Limitation:** Context window pressure can cause Claude to miss or override these instructions. Don't rely on CLAUDE.md alone for critical safety rules.
+You usually only need four concepts:
 
-Copy `layers/1-claude-md/CLAUDE.md` to your project root and customize it.
+- **Profiles**: the normal entrypoint; a profile picks a useful set of fragments
+- **Hooks**: hard safety rules; great for catching dangerous patterns like `--force`
+- **Permissions**: simple allow/deny/ask rules; great for routine command policy
+- **Sub-agents**: scoped agent definitions copied into `.claude/agents/`
 
-### 2. Hooks
+There is also a `CLAUDE.md` template layer for soft guidance, but the day-to-day workflow is mostly profile -> build -> probe.
 
-Shell commands that execute at specific lifecycle points via `PreToolUse`. They block execution with a non-zero exit code. Claude cannot bypass them.
+## Hooks vs permissions
 
-**When to use:** Preventing dangerous commands, enforcing validation before commits, catching security issues in real-time.
+Use **hooks** when the rule must be hard to bypass.
 
-**Adding a new hook:** Create a JSON file in `layers/2-hooks/` following this format:
+Examples:
+
+- block `git push --force`
+- block `az deployment ... --mode Complete`
+- block `terraform destroy`
+
+Use **permissions** when the rule is simple and predictable.
+
+Examples:
+
+- auto-allow `git status`
+- auto-allow `git diff`
+- ask before a specific tool or command family
+
+In practice, strong setups use both:
+
+- permissions for smooth, low-friction defaults
+- hooks for the dangerous edge cases
+
+## Extend the guardrails
+
+### Add a hook
+
+Create a JSON file under `layers/2-hooks/`.
+
+Hook commands receive tool input as JSON on stdin. For Bash hooks, read `.tool_input.command`:
 
 ```json
 {
-  "description": "What this hook does",
+  "description": "Block dangerous pattern",
   "hooks": {
     "PreToolUse": [
       {
@@ -119,188 +206,64 @@ Shell commands that execute at specific lifecycle points via `PreToolUse`. They 
 }
 ```
 
-Then run `make build` to regenerate `.claude/settings.json`.
-
-### 3. Permissions
-
-Tool-level allow/deny rules. Simple and declarative - no scripting needed.
-
-**When to use:** Allowing read-only commands to auto-run while requiring approval for state-changing operations.
-
-**Adding a preset:** Create a JSON file in `layers/3-permissions/` with `permissions.allow` and `permissions.deny` arrays. The build script deduplicates and merges all presets.
-
-**Limitation:** Deny rules match exact patterns, so variants of a command may slip through. Combine with hooks for reliable blocking.
-
-### 4. Sub-agents
-
-Custom agents with scoped tool restrictions, custom permissions, and their own hooks. Installed to `.claude/agents/` as individual JSON files (not merged into `settings.json`).
-
-**When to use:** Delegating tasks where you want to limit what tools the agent can access.
-
-**Adding an agent:** Create a JSON file in `layers/4-sub-agents/` with `name`, `description`, `prompt`, `tools`, and `permissions` fields. Run `make build` to copy it to the target.
-
-**Constraint:** Sub-agents cannot spawn other sub-agents (no infinite recursion).
-
-### 5. Agent Teams
-
-Multiple independent Claude sessions that coordinate and divide work in parallel. Each session has its own guardrails. *(Planned)*
-
-### 6. Enterprise/Org Policies
-
-Organization-managed policies that override user and project settings. Can restrict the use of `--dangerously-skip-permissions` across all member CLIs. *(Planned)*
-
-**Resolution priority:** Enterprise > User > Project > Plugin.
-
-## Profiles
-
-Profiles are curated bundles of fragments for common workflows. Instead of picking individual fragments, choose a profile that matches how you work.
+Then run:
 
 ```bash
-# See what's available
-make profiles
-
-# Preview a profile
-make build profile=go-dev dry=1
-
-# Install a profile
-make build profile=go-dev
+make test
+make probe fragment=path/to/your.json tool=Bash command='some command'
 ```
 
-| Profile | Hooks | Permissions | Sub-agents | Use case |
-|---|---|---|---|---|
-| `go-dev` | git, security, packages | standard-dev | reviewer, explorer | Go app/backend development |
-| `python-dev` | git, security, packages | standard-dev | reviewer, docs-reviewer | Python development |
-| `infra-dev` | git, security, terraform, k8s, azure, aws, ci-cd, gh | standard-dev | explorer, release-reviewer | Infrastructure/platform work |
-| `readonly-review` | secret scanning only | read-only | reviewer, docs-reviewer, explorer | Code review, audit, spelunking |
+### Add a permission preset
 
-Profiles merge with existing settings by default, or replace them with `overwrite=1`. Switching profiles automatically removes sub-agents that aren't in the new profile.
+Create a JSON file under `layers/3-permissions/` with `permissions.allow` and `permissions.deny`.
 
-## Hooks vs Permissions - When to Use Which
+### Add a sub-agent
 
-The two most commonly used guardrail layers are hooks and permissions. They solve different problems and work best together.
+Create a JSON file under `layers/4-sub-agents/` with:
 
-### Hooks
+- `name`
+- `description`
+- `prompt`
+- `tools`
+- `permissions`
 
-- Shell scripts that run before/after tool calls via lifecycle events (e.g., `PreToolUse`)
-- **Never prompt the user** - they silently block (non-zero exit) or silently allow
-- Can output an error message explaining why something was blocked
-- Full shell power for matching - regex, jq, grep, any logic you need
-- Hard to bypass - catches command variants like `--force`, `-f`, `--force-with-lease` with a single regex
-- Slight performance overhead since each hook spawns a shell process
-- 12 lifecycle events available (pre/post for each tool type)
+### Add project guidance
 
-**Use hooks when:**
-- You need pattern matching to catch dangerous flags regardless of position (e.g., `--mode Complete` anywhere in an `az` command)
-- You want to block a category of behavior, not just one exact string
-- You need context-aware logic (e.g., block `kubectl delete` only in production namespaces)
-- You want to validate content before it's committed (lint, secret scanning)
-- The rule is safety-critical and must not be bypassable
+Copy `layers/1-claude-md/CLAUDE.md` into your repo and customize it.
 
-**Real-world examples:**
-- Block `az deployment group create --mode Complete` (deletes all resources not in template)
-- Block `git push --force` and all its variants (`-f`, `--force-with-lease`, `--force-if-includes`)
-- Prevent committing files containing secrets or API keys
-- Block `terraform destroy` without an explicit plan file
+## Repository layout
 
-### Permissions
-
-- Declarative allow/deny/ask rules matched against tool name + command string
-- **Three modes:**
-  - `allow` - never prompts, always runs automatically
-  - `deny` - never prompts, always blocks silently
-  - `ask` - always prompts the user for approval
-- Exact string prefix matching only - no regex, no pattern logic
-- Instant evaluation (string comparison, no shell overhead)
-- Easy to bypass with command variants since matching is literal
-- Scoped per tool (Bash, Read, Write, etc.)
-
-**Use permissions when:**
-- You want common read-only commands to run without prompting every time (e.g., `git status`, `git diff`, `git log`)
-- You want simple "always block" rules for commands you never use (e.g., `rm -rf /`)
-- You want to require manual approval for specific tools or commands (ask mode)
-- You need zero-overhead, instant evaluation
-- The exact command string is predictable and won't have variants
-
-**Real-world examples:**
-- Auto-allow `git status`, `git diff`, `git log`, `git branch` (no more approval prompts)
-- Auto-deny `rm -rf` as a simple safety net
-- Ask before any `git push` or `git commit`
-- Allow all Read tool usage but ask before Write
-
-### Using them together
-
-Permissions and hooks are complementary, not competing. A strong setup uses both:
-
-- **Permissions** handle the routine - auto-allow safe commands so Claude isn't constantly asking for approval
-- **Hooks** handle the dangerous - pattern-match and block destructive operations that permissions can't reliably catch
-
-```
-Permissions (fast, simple):     "allow git status, git diff, git log"
-Hooks (thorough, pattern-based): "block any command containing --force or --mode Complete"
-```
-
-## Choosing the Right Layer
-
-```
-Is it critical that this rule CANNOT be bypassed?
-  |-- Yes
-  |   |-- Does it need pattern matching / complex logic? -> Hooks
-  |   |-- Is it a simple tool allow/deny? -> Permissions
-  |   |-- Is it scoped to a delegated task? -> Sub-agents
-  |   +-- Does it apply across the whole org? -> Enterprise Policies
-  +-- No -> CLAUDE.md
+```text
+profiles/              curated workflow bundles
+layers/1-claude-md/    CLAUDE.md templates
+layers/2-hooks/        hook fragments
+layers/3-permissions/  permission fragments
+layers/4-sub-agents/   sub-agent definitions
+scripts/               build + probe helpers
+tests/                 shell test suite
+Makefile               main user entrypoint
 ```
 
 ## Testing
 
 ```bash
-make test                              # run all tests
-./tests/run-tests.sh hook-behavior     # run a specific test file
-./tests/run-tests.sh merge hooks       # run multiple test files
+make test
+./tests/run-tests.sh probe
+./tests/run-tests.sh probe-workflow
+./tests/run-tests.sh hook-behavior
 ```
 
-See [tests/README.md](tests/README.md) for what each test file covers.
+See [tests/README.md](tests/README.md) for the full test inventory.
 
 ## Contributing
 
-### Adding a new hook
+The happy path for changes is:
 
-1. Create a JSON file in the appropriate `layers/2-hooks/` subdirectory
-2. Hook commands receive tool input as **JSON on stdin** (not via environment variables). Use `jq` to read it directly:
-   ```bash
-   # Bash tool hooks — read .tool_input.command from stdin
-   jq -e '.tool_input.command // "" | test("pattern") | not' >/dev/null
-
-   # Edit/Read/Write hooks — read .tool_input.file_path from stdin
-   jq -e '.tool_input.file_path // "" | test("pattern") | not' >/dev/null
-   ```
-3. Always include `// ""` null guards and `>/dev/null` to suppress stdout
-4. Run `make test` to verify it merges correctly and passes hook behavior tests
-5. Submit a PR
-
-### Modifying existing hooks
-
-When you change a hook command, `make build` **merges** new hooks alongside existing ones by default — the old version persists. Use `overwrite=1` to replace:
-
-```bash
-make build overwrite=1          # replace all hooks + permissions
-make build target=project overwrite=1  # replace project-level only
-```
-
-### Other changes
-
-1. Add or edit fragments in the appropriate `layers/` directory
-2. Run `make test`
-3. Submit a PR
+1. edit fragments or scripts
+2. run `make test`
+3. use `make probe` to sanity-check behavior
+4. send the PR
 
 ## License
 
 MIT
-
-<\!-- test change for force push -->
-
-<\!-- guardrail test -->
-
-<!-- guardrail test 2 -->
-
-<!-- force push guardrail test 1773950486 -->
